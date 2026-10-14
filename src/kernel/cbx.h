@@ -70,6 +70,8 @@ typedef struct customos_api {
     uint32_t (*kbd_get_codepoint)(void);
     uint32_t (*kbd_wait_codepoint)(void);
     int32_t  (*kbd_russian_layout)(void);
+    /* API v4: register/update a valid G_XXXXXXXX.CBX stored on ProjectFS. */
+    int32_t  (*app_install_persistent)(const char *filename);
 } customos_api_t;
 
 #endif
