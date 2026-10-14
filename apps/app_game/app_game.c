@@ -96,10 +96,10 @@ static void draw_arena(const customos_api_t *api,
     api->gfx_clear(COLOR_BLACK);
 
     api->gfx_draw_text(8, 7, "DODGE / STAGE 7", COLOR_WHITE, COLOR_TRANSPARENT);
-    api->gfx_draw_text(185, 7, "S:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
-    api->gfx_draw_text(201, 7, score_text, COLOR_WHITE, COLOR_TRANSPARENT);
-    api->gfx_draw_text(246, 7, "BEST:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
-    api->gfx_draw_text(286, 7, best_text, COLOR_WHITE, COLOR_TRANSPARENT);
+    api->gfx_draw_text(178, 7, "S:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
+    api->gfx_draw_text(194, 7, score_text, COLOR_WHITE, COLOR_TRANSPARENT);
+    api->gfx_draw_text(238, 7, "BEST:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
+    api->gfx_draw_text(278, 7, best_text, COLOR_WHITE, COLOR_TRANSPARENT);
 
     api->gfx_draw_rect(6, 22, 308, 150, COLOR_DARK_GRAY);
     /* Subtle reference grid; each cell is 20 pixels. */
@@ -217,7 +217,7 @@ int app_main(const customos_api_t *api) {
             spawn_clock++;
 
             /* Score advances at 5 points per second on the nominal 50 FPS loop. */
-            if ((frames % 10u) == 0) score++;
+            if ((frames % 10u) == 0 && score < 99999u) score++;
             if (score > best) best = score;
 
             uint32_t spawn_interval = 22u;
