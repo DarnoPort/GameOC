@@ -8,6 +8,30 @@ static uint32_t safe_cstr_length(const char *text, uint32_t maximum) {
     return length;
 }
 
+
+static uint32_t utf8_prefix_length(const char *text, uint32_t maximum) {
+    uint32_t offset = 0;
+    while (offset < maximum && text[offset] != '\0') {
+        uint8_t first = (uint8_t)text[offset];
+        uint32_t count = first < 0x80u ? 1u :
+            (first >= 0xC2u && first <= 0xDFu ? 2u :
+            (first >= 0xE0u && first <= 0xEFu ? 3u :
+            (first >= 0xF0u && first <= 0xF4u ? 4u : 1u)));
+        if (offset + count > maximum) break;
+        int valid = 1;
+        for (uint32_t i = 1; i < count; i++) {
+            uint8_t byte = (uint8_t)text[offset + i];
+            if (byte == 0 || (byte & 0xC0u) != 0x80u) {
+                valid = 0;
+                break;
+            }
+        }
+        if (!valid) count = 1u;
+        offset += count;
+    }
+    return offset;
+}
+
 static void bytes_copy(uint8_t *destination, const uint8_t *source, uint32_t length) {
     for (uint32_t i = 0; i < length; i++) destination[i] = source[i];
 }
@@ -57,7 +81,7 @@ int vn_pack_player_cbx(const uint8_t *template_bytes, uint32_t template_size,
     if (VN_CBX_HEADER_BYTES + new_payload_size > VN_MAX_CBX_FILE_BYTES) return -9;
     if (output_capacity < VN_CBX_HEADER_BYTES + new_payload_size) return -10;
 
-    uint32_t name_length = safe_cstr_length(app_name, sizeof(template_header->name) - 1u);
+    uint32_t name_length = utf8_prefix_length(app_name, sizeof(template_header->name) - 1u);
     uint32_t desc_length = safe_cstr_length(description, sizeof(template_header->description) - 1u);
     if (name_length > sizeof(template_header->name) - 1u ||
         desc_length > sizeof(template_header->description) - 1u) return -11;
