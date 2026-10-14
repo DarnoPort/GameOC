@@ -77,6 +77,7 @@ const char *vn_error_message(vn_error_code_t code) {
         case VN_ERR_STRING_POOL_FULL: return "The script string pool is full.";
         case VN_ERR_EXPECTED_SEMICOLON: return "Expected ';' at the end of the statement.";
         case VN_ERR_EMPTY_TEXT: return "A text line or choice title cannot be empty.";
+        case VN_ERR_TEXT_TOO_LARGE: return "A text line or choice title exceeds 512 bytes.";
         case VN_ERR_UNESCAPED_SEMICOLON: return "Use '\\;' to include a semicolon inside text.";
         case VN_ERR_BAD_COMMAND_SYNTAX: return "The command syntax is invalid.";
         case VN_ERR_INVALID_JUMP_TARGET: return "Invalid jump target identifier.";
@@ -311,6 +312,9 @@ static int vn_parse_text(vn_parser_t *parser, const vn_line_t *line) {
     if (text_length == 0) {
         return vn_set_error(parser->error, VN_ERR_EMPTY_TEXT, line->line);
     }
+    if (text_length > VN_MAX_TEXT_BYTES) {
+        return vn_set_error(parser->error, VN_ERR_TEXT_TOO_LARGE, line->line);
+    }
 
     for (uint32_t i = 0; i < text_length; i++) {
         if (line->text[i] == '\\' && i + 1u < text_length &&
@@ -406,7 +410,11 @@ static int vn_parse_menu(vn_parser_t *parser, const vn_line_t *menu_line) {
         if (title_length == 0) {
             return vn_set_error(parser->error, VN_ERR_EMPTY_TEXT, line.line);
         }
-        if (program->choice_count >= VN_MAX_CHOICES) {
+        if (title_length > VN_MAX_TEXT_BYTES) {
+            return vn_set_error(parser->error, VN_ERR_TEXT_TOO_LARGE, line.line);
+        }
+        if (menu->choice_count >= VN_MAX_CHOICES_PER_MENU ||
+            program->choice_count >= VN_MAX_CHOICES) {
             return vn_set_error(parser->error, VN_ERR_TOO_MANY_CHOICES, line.line);
         }
 
