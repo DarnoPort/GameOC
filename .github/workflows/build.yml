@@ -29,3 +29,5 @@ jobs:
         run: make test
       - name: Verify ProjectFS persistence across QEMU restart
         run: python3 tools/test_projectfs_qemu.py --kernel bin/customos.elf --app build/apps/app_fs_test.cbx
+      - name: Run packaged novel inside CustomOS
+        run: make test-novel-player
