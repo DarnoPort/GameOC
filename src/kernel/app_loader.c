@@ -3,6 +3,7 @@
 #include "vga.h"
 #include "keyboard.h"
 #include "timer.h"
+#include "projectfs.h"
 
 extern int  app_invoke(uint32_t entry_point, const customos_api_t *api, uint32_t app_stack);
 extern void app_exit_trampoline(int exit_code);
@@ -16,7 +17,7 @@ static int api_initialized = 0;
 static void init_system_api(void) {
     if (api_initialized) return;
 
-    system_api.version = 1;
+    system_api.version = 2;
 
     /* Текстовые вызовы */
     system_api.print      = vga_print;
@@ -46,6 +47,16 @@ static void init_system_api(void) {
 
     /* Выход */
     system_api.exit = app_exit_trampoline;
+
+    /* Persistent ProjectFS calls. They fail cleanly when storage is unavailable. */
+    system_api.fs_available = projectfs_is_ready;
+    system_api.fs_count = projectfs_count;
+    system_api.fs_name_at = projectfs_name_at;
+    system_api.fs_size = projectfs_size;
+    system_api.fs_read = projectfs_read;
+    system_api.fs_write = projectfs_write;
+    system_api.fs_delete = projectfs_delete;
+    system_api.fs_rename = projectfs_rename;
 
     api_initialized = 1;
 }

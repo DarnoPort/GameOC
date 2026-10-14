@@ -7,6 +7,7 @@
 #include "gfx.h"
 #include "app_registry.h"
 #include "app_loader.h"
+#include "projectfs.h"
 #include "launcher.h"
 
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002u
@@ -155,6 +156,9 @@ void kmain(uint32_t magic, uint32_t mb_info_addr) {
 
     /* 2. Инициализация графики */
     gfx_init();
+
+    /* 2.5. Инициализация постоянного диска. Ошибка не должна останавливать ОС. */
+    (void)projectfs_init();
 
     /* 3. Регистрация встроенных приложений. */
     uint32_t appfs_size =

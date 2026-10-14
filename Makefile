@@ -22,6 +22,7 @@ KERNEL_BIN    := $(BIN_DIR)/customos.elf
 APPFS_IMG     := $(BUILD_DIR)/appfs.img
 EXTERNAL_APPFS_IMG := $(BUILD_DIR)/external_apps.img
 EXTERNAL_CBX ?=
+DATA_DISK       := customos_data.img
 
 # Список приложений CustomOS
 APPS_CBX      := $(BUILD_APP_DIR)/app_test.cbx \
@@ -42,11 +43,13 @@ OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/timer.o \
         $(BUILD_DIR)/keyboard.o \
         $(BUILD_DIR)/gfx.o \
+        $(BUILD_DIR)/ide.o \
+        $(BUILD_DIR)/projectfs.o \
         $(BUILD_DIR)/app_loader.o \
         $(BUILD_DIR)/app_registry.o \
         $(BUILD_DIR)/launcher.o
 
-.PHONY: all clean run build_dirs external-apps run-external external-demo run-external-demo
+.PHONY: all clean run build_dirs ensure-data-disk external-apps run-external external-demo run-external-demo test
 
 all: $(KERNEL_BIN)
 
@@ -141,10 +144,14 @@ $(BUILD_APP_DIR)/external_demo.cbx: $(BUILD_APP_DIR)/external_demo.elf tools/cbx
 
 external-demo: $(BUILD_APP_DIR)/external_demo.cbx
 
-run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx | build_dirs
+run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx ensure-data-disk | build_dirs
 	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(BUILD_APP_DIR)/external_demo.cbx
 	@echo "Запуск CustomOS с тестовым внешним приложением..."
-	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG)
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
+
+# Persistent ProjectFS data disk. The image is outside build/ so make clean keeps user data.
+ensure-data-disk:
+	@$(PYTHON) tools/mkprojectfs.py $(DATA_DISK)
 
 # --- Сборка виртуального диска AppFS ---
 $(APPFS_IMG): $(APPS_CBX) tools/mkappfs.py | build_dirs
@@ -160,9 +167,9 @@ external-apps: build_dirs
 	fi
 	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(EXTERNAL_CBX)
 
-run-external: $(KERNEL_BIN) external-apps
+run-external: $(KERNEL_BIN) external-apps ensure-data-disk
 	@echo "Запуск CustomOS с внешним пакетом $(EXTERNAL_APPFS_IMG)..."
-	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG)
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
 # --- Сборка компонентов ядра ---
 $(BUILD_DIR)/boot.o: $(SRC_DIR)/boot/boot.asm | build_dirs
@@ -190,10 +197,13 @@ $(KERNEL_BIN): $(OBJS) | build_dirs
 	@$(LD) $(LDFLAGS) $(OBJS) -o $@
 	@echo "=== CustomOS Kernel Stage 8 successfully built: $@ ==="
 
-run: $(KERNEL_BIN)
+run: $(KERNEL_BIN) ensure-data-disk
 	@echo "Запуск CustomOS в QEMU..."
-	$(QEMU) -kernel $(KERNEL_BIN)
+	$(QEMU) -kernel $(KERNEL_BIN) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
+
+test:
+	@PYTHONPATH=tools $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 clean:
 	@rm -rf $(BUILD_DIR) $(BIN_DIR)
-	@echo "Каталоги сборки очищены."
+	@echo "Каталоги сборки очищены. Образ customos_data.img и пользовательские проекты сохранены."
