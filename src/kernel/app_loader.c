@@ -8,6 +8,7 @@ extern int  app_invoke(uint32_t entry_point, const customos_api_t *api, uint32_t
 extern void app_exit_trampoline(int exit_code);
 
 #define APP_MAX_MEMORY (900u * 1024u)
+#define APP_STACK_SIZE (16u * 1024u)
 
 static customos_api_t system_api;
 static int api_initialized = 0;
@@ -108,6 +109,22 @@ int app_load_and_run(const uint8_t *cbx_data, uint32_t cbx_size) {
     /* 5. Вычисление точки входа и вызов приложения */
     uint32_t entry_point = APP_BASE_ADDRESS + hdr->entry_offset;
     int exit_code = app_invoke(entry_point, &system_api, APP_STACK_TOP);
+
+    /*
+     * Unload the execution image after return. The next app must not see stale
+     * code/data/BSS from the previous process. Clear the dedicated app stack as
+     * well; app_invoke has already restored the kernel stack at this point.
+     */
+    volatile uint8_t *wipe_image = (volatile uint8_t *)APP_BASE_ADDRESS;
+    for (uint32_t i = 0; i < APP_MAX_MEMORY; i++) {
+        wipe_image[i] = 0;
+    }
+
+    volatile uint8_t *wipe_stack =
+        (volatile uint8_t *)(APP_STACK_TOP - APP_STACK_SIZE);
+    for (uint32_t i = 0; i < APP_STACK_SIZE; i++) {
+        wipe_stack[i] = 0;
+    }
 
     return exit_code;
 }
