@@ -9,6 +9,19 @@ static int registered_count = 0;
 static const uint8_t *external_appfs = NULL;
 static uint32_t external_appfs_size = 0;
 
+/*
+ * OS-owned copy of imported external CBX files. The kernel selects this region
+ * from RAM reported by Multiboot, beyond the kernel and boot modules.
+ */
+static uint8_t *app_store_base = NULL;
+static uint32_t app_store_size = 0;
+static uint32_t app_store_used = 0;
+
+static int ranges_overlap(uint32_t a_start, uint32_t a_end,
+                          uint32_t b_start, uint32_t b_end) {
+    return a_start < b_end && b_start < a_end;
+}
+
 static void kstr_copy(char *dst, const char *src, uint32_t max_len) {
     uint32_t i = 0;
     if (max_len == 0) return;
@@ -44,7 +57,8 @@ static int validate_cbx(const uint8_t *data, uint32_t size) {
     }
 
     const uint32_t file_memory = hdr->code_size + hdr->data_size;
-    if (file_memory > APP_MAX_MEMORY || hdr->bss_size > APP_MAX_MEMORY - file_memory) {
+    if (file_memory > APP_MAX_MEMORY ||
+        hdr->bss_size > APP_MAX_MEMORY - file_memory) {
         return 0;
     }
 
@@ -67,28 +81,57 @@ static int validate_appfs(const uint8_t *fs_data, uint32_t fs_size,
     return 0;
 }
 
-/* Добавляет одну запись; 1=добавлена, 0=невалидна/дубликат, -1=место кончилось. */
+int app_registry_set_storage(uint8_t *base, uint32_t size) {
+    if (base == NULL || size == 0) return -1;
+
+    uint32_t start = (uint32_t)base;
+    uint32_t end = start + size;
+    if (end < start) return -2;
+
+    /* Never put installable files in the fixed application image/stack arena. */
+    if (ranges_overlap(start, end, APP_BASE_ADDRESS, APP_STACK_TOP)) return -3;
+
+    /* Do not overwrite the bootloader-owned source package while copying apps. */
+    if (external_appfs != NULL) {
+        uint32_t source_start = (uint32_t)external_appfs;
+        uint32_t source_end = source_start + external_appfs_size;
+        if (source_end < source_start ||
+            ranges_overlap(start, end, source_start, source_end)) {
+            return -4;
+        }
+    }
+
+    for (int i = 0; i < registered_count; i++) {
+        if (registered_apps[i].removable) return -5;
+    }
+
+    app_store_base = base;
+    app_store_size = size;
+    app_store_used = 0;
+    return 0;
+}
+
+/* Adds one entry: 1=added, 0=invalid/duplicate, -1=capacity or storage full. */
 static int append_entry(const uint8_t *fs_data, uint32_t fs_size,
                         uint32_t table_end, const appfs_entry_t *entry,
                         int removable) {
     if (registered_count >= MAX_REGISTERED_APPS) return -1;
 
-    /* Запрещаем ссылки на заголовок/каталог и проверяем границы без переполнения. */
+    /* Reject directory/self-references and validate arithmetic without overflow. */
     if (entry->offset < table_end ||
         entry->offset > fs_size ||
         entry->size > fs_size - entry->offset) {
         return 0;
     }
 
-    const uint8_t *cbx_data = fs_data + entry->offset;
-    if (!validate_cbx(cbx_data, entry->size)) return 0;
+    const uint8_t *source_cbx = fs_data + entry->offset;
+    if (!validate_cbx(source_cbx, entry->size)) return 0;
 
     char filename[32];
     char name[32];
     kstr_copy(filename, entry->filename, sizeof(filename));
     kstr_copy(name, entry->name, sizeof(name));
 
-    /* Не добавляем повторно уже установленное приложение. */
     for (int i = 0; i < registered_count; i++) {
         if (kstr_equal(registered_apps[i].filename, filename) ||
             kstr_equal(registered_apps[i].name, name)) {
@@ -96,13 +139,32 @@ static int append_entry(const uint8_t *fs_data, uint32_t fs_size,
         }
     }
 
+    uint32_t storage_offset = 0;
+    const uint8_t *app_data = source_cbx;
+
+    if (removable) {
+        if (app_store_base == NULL ||
+            app_store_used > app_store_size ||
+            entry->size > app_store_size - app_store_used) {
+            return -1;
+        }
+
+        storage_offset = app_store_used;
+        for (uint32_t i = 0; i < entry->size; i++) {
+            app_store_base[storage_offset + i] = source_cbx[i];
+        }
+        app_data = app_store_base + storage_offset;
+        app_store_used += entry->size;
+    }
+
     registered_app_t *app = &registered_apps[registered_count];
     kstr_copy(app->filename, entry->filename, sizeof(app->filename));
     kstr_copy(app->name, entry->name, sizeof(app->name));
     kstr_copy(app->description, entry->description, sizeof(app->description));
     app->size = entry->size;
-    app->data = cbx_data;
+    app->data = app_data;
     app->removable = removable ? 1 : 0;
+    app->storage_offset = storage_offset;
     registered_count++;
     return 1;
 }
@@ -111,6 +173,7 @@ int app_registry_init(const uint8_t *fs_data, uint32_t fs_size) {
     registered_count = 0;
     external_appfs = NULL;
     external_appfs_size = 0;
+    app_store_used = 0;
 
     uint32_t count = 0;
     int result = validate_appfs(fs_data, fs_size, &count);
@@ -137,17 +200,24 @@ int app_registry_set_external_source(const uint8_t *fs_data, uint32_t fs_size) {
         return result;
     }
 
-    /*
-     * Application execution uses 0x00400000..0x004F0000. A boot module that
-     * overlaps this fixed region would be overwritten when an app is launched.
-     */
     uint32_t source_start = (uint32_t)fs_data;
     uint32_t source_end = source_start + fs_size;
     if (source_end < source_start ||
-        (source_start < APP_STACK_TOP && source_end > APP_BASE_ADDRESS)) {
+        ranges_overlap(source_start, source_end, APP_BASE_ADDRESS, APP_STACK_TOP)) {
         external_appfs = NULL;
         external_appfs_size = 0;
         return -4;
+    }
+
+    if (app_store_base != NULL) {
+        uint32_t store_start = (uint32_t)app_store_base;
+        uint32_t store_end = store_start + app_store_size;
+        if (store_end < store_start ||
+            ranges_overlap(source_start, source_end, store_start, store_end)) {
+            external_appfs = NULL;
+            external_appfs_size = 0;
+            return -4;
+        }
     }
 
     external_appfs = fs_data;
@@ -161,6 +231,7 @@ int app_registry_external_available(void) {
 
 int app_registry_install_external(void) {
     if (!app_registry_external_available()) return -1;
+    if (app_store_base == NULL || app_store_size == 0) return -3;
 
     uint32_t count = 0;
     int result = validate_appfs(external_appfs, external_appfs_size, &count);
@@ -176,6 +247,7 @@ int app_registry_install_external(void) {
         int item_result = append_entry(external_appfs, external_appfs_size,
                                        table_end, &entries[i], 1);
         if (item_result > 0) added++;
+        if (item_result < 0) break;
     }
 
     return added;
@@ -190,7 +262,7 @@ const registered_app_t *app_registry_get(int index) {
     return &registered_apps[index];
 }
 
-/* Встроенные приложения нельзя удалить из списка во время работы ОС. */
+/* External apps are copies in OS-managed RAM; removing one reclaims its bytes. */
 int app_registry_remove(int index) {
     if (index < 0 || index >= registered_count) return -1;
     if (!registered_apps[index].removable) return -2;
@@ -198,14 +270,38 @@ int app_registry_remove(int index) {
     for (int i = index; i + 1 < registered_count; i++) {
         registered_apps[i] = registered_apps[i + 1];
     }
-
     registered_count--;
+
+    /* Compact the remaining external binaries and update all their pointers. */
+    uint32_t new_used = 0;
+    for (int i = 0; i < registered_count; i++) {
+        registered_app_t *app = &registered_apps[i];
+        if (!app->removable) continue;
+
+        uint32_t old_offset = app->storage_offset;
+        if (old_offset != new_used) {
+            for (uint32_t j = 0; j < app->size; j++) {
+                app_store_base[new_used + j] = app_store_base[old_offset + j];
+            }
+        }
+
+        app->storage_offset = new_used;
+        app->data = app_store_base + new_used;
+        new_used += app->size;
+    }
+
+    for (uint32_t i = new_used; i < app_store_used; i++) {
+        app_store_base[i] = 0;
+    }
+    app_store_used = new_used;
+
     registered_apps[registered_count].filename[0] = '\0';
     registered_apps[registered_count].name[0] = '\0';
     registered_apps[registered_count].description[0] = '\0';
     registered_apps[registered_count].size = 0;
     registered_apps[registered_count].data = NULL;
     registered_apps[registered_count].removable = 0;
+    registered_apps[registered_count].storage_offset = 0;
     return 0;
 }
 
