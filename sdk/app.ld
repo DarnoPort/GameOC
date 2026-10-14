@@ -22,6 +22,8 @@ SECTIONS
 
     .bss : ALIGN(4)
     {
+        /* Player CBX resource is appended at the first byte of the original BSS. */
+        *(.bss.vn_payload)
         *(COMMON)
         *(.bss*)
     }
