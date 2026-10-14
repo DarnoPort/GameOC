@@ -150,6 +150,15 @@ run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx ensure-data-
 	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
 
+
+# Host-side unit tests exercise the same freestanding engine compiled into CustomOS apps.
+HOSTCC ?= gcc
+
+$(BUILD_DIR)/tests/vn_engine_test: apps/app_novel_shared/vn_engine.c apps/app_novel_shared/vn_engine.h tests/vn_engine_test.c | build_dirs
+	@mkdir -p $(BUILD_DIR)/tests
+	@echo "[HOST-TEST-CC] scenario parser and runtime"
+	@$(HOSTCC) -std=c11 -Wall -Wextra -Werror -O2 -I apps/app_novel_shared apps/app_novel_shared/vn_engine.c tests/vn_engine_test.c -o $@
+
 # ProjectFS persistence diagnostic (kept external; not included in the regular launcher).
 $(BUILD_APP_DIR)/app_fs_test.o: apps/app_fs_test/app_fs_test.c sdk/customos.h | build_dirs
 	@echo "[APP-CC] $< -> $@"
@@ -220,7 +229,8 @@ run: $(KERNEL_BIN) ensure-data-disk
 	@echo "Запуск CustomOS в QEMU..."
 	$(QEMU) -kernel $(KERNEL_BIN) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
-test: $(BUILD_APP_DIR)/app_fs_test.cbx
+test: $(BUILD_APP_DIR)/app_fs_test.cbx $(BUILD_DIR)/tests/vn_engine_test
+	@$(BUILD_DIR)/tests/vn_engine_test
 	@PYTHONPATH=tools $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 clean:
