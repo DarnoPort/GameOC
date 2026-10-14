@@ -248,7 +248,7 @@ static uint32_t next_key(void) {
     while (1) {
         uint32_t key = os_api->kbd_wait_codepoint != NULL
             ? os_api->kbd_wait_codepoint() : os_api->kbd_wait_key();
-        if (key == KEY_LAYOUT_TOGGLE || key == KEY_F12) continue;
+        if (key == KEY_F12) continue;
         return key;
     }
 }
@@ -405,6 +405,14 @@ static int create_project(void) {
     while (1) {
         uint32_t key = next_key();
         if (key == 27) return 0;
+        if (key == KEY_LAYOUT_TOGGLE) {
+            os_api->gfx_fill_rect(8, 84, 304, 12, COLOR_BLACK);
+            draw_text(os_api->kbd_russian_layout != NULL && os_api->kbd_russian_layout()
+                ? "Keyboard layout: RU" : "Keyboard layout: EN",
+                8, 86, COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
+            os_api->gfx_flip();
+            continue;
+        }
         if (key == '\n' || key == 13u) break;
         if (key == '\b' && length > 0) {
             uint32_t pos = utf8_previous(title, length);
