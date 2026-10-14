@@ -133,10 +133,7 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
         time.sleep(2.0)
         read_monitor_responses(channel)
         monitor_command(channel, "sendkey i", 0.4)
-        # Built-in launcher currently lists five applications; the external
-        # persistence test is imported as item 6.
-        for _ in range(5):
-            monitor_command(channel, "sendkey down", 0.18)
+        # The launcher selects the newly imported external app automatically.
         monitor_command(channel, "sendkey ret", 0.7)
         # ProjectFS operations run synchronously inside the diagnostic app.
         time.sleep(1.0)
