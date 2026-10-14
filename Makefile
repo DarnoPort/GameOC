@@ -155,6 +155,19 @@ $(BUILD_APP_DIR)/app_novel_player.cbx: $(BUILD_APP_DIR)/app_novel_player.elf too
 $(BUILD_APP_DIR)/novel_player_template.h: $(BUILD_APP_DIR)/app_novel_player.cbx tools/bin2c.py | build_dirs
 	@$(PYTHON) tools/bin2c.py $< $@ --symbol vn_player_template
 
+
+$(BUILD_APP_DIR)/app_novel_editor.o: apps/app_novel_editor/app_novel_editor.c apps/app_novel_shared/vn_engine.h apps/app_novel_shared/vn_package.h sdk/customos.h $(BUILD_APP_DIR)/novel_player_template.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -fno-builtin -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_novel_shared/ -I $(BUILD_APP_DIR)/ -c $< -o $@
+
+$(BUILD_APP_DIR)/app_novel_editor.elf: $(BUILD_APP_DIR)/app_novel_editor.o $(BUILD_APP_DIR)/vn_engine.o $(BUILD_APP_DIR)/vn_package.o | build_dirs
+	@echo "[APP-LD] $^ -> $@"
+	@$(LD) -m elf_i386 -T sdk/app.ld $^ -o $@
+
+$(BUILD_APP_DIR)/app_novel_editor.cbx: $(BUILD_APP_DIR)/app_novel_editor.elf tools/cbxpack.py | build_dirs
+	@echo "[CBXPACK] $< -> $@"
+	@$(PYTHON) tools/cbxpack.py $< $@ --name "NovelStudio" --desc "Visual Novel Studio for CustomOS"
+
 # Standalone demo used to test the external-app import path (not built into AppFS).
 $(BUILD_APP_DIR)/external_demo.o: apps/external_demo/external_demo.c sdk/customos.h | build_dirs
 	@echo "[APP-CC] $< -> $@"
