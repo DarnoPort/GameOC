@@ -25,19 +25,44 @@ static void int_to_dec(uint32_t n, char *out) {
     out[j] = '\0';
 }
 
+static uint32_t utf8_step(const char *text, uint32_t offset) {
+    uint8_t first = (uint8_t)text[offset];
+    if (first < 0x80u) return 1u;
+    if (first >= 0xF0u) return 4u;
+    if (first >= 0xE0u) return 3u;
+    if (first >= 0xC2u) return 2u;
+    return 1u;
+}
+
 static void draw_truncated(int x, int y, const char *src,
                            uint32_t max_chars, uint8_t fg) {
-    char text[32];
-    uint32_t i = 0;
+    char text[64];
+    uint32_t source_offset = 0;
+    uint32_t written = 0;
+    uint32_t characters = 0;
+    int truncated = 0;
 
-    if (max_chars > sizeof(text) - 1) max_chars = sizeof(text) - 1;
-    while (i < max_chars && src[i] != '\0') {
-        text[i] = src[i];
-        i++;
+    if (max_chars > 48u) max_chars = 48u;
+    while (src[source_offset] != '\0' && characters < max_chars) {
+        uint32_t step = utf8_step(src, source_offset);
+        uint32_t end = source_offset + step;
+        if (src[end - 1u] == '\0') {
+            step = 1u;
+            end = source_offset + 1u;
+        }
+        if (written + step >= sizeof(text) - 1u) {
+            truncated = 1;
+            break;
+        }
+        for (uint32_t i = 0; i < step; i++) text[written++] = src[source_offset + i];
+        source_offset = end;
+        characters++;
     }
-    text[i] = '\0';
-    if (src[i] != '\0' && i > 0) text[i - 1] = '~';
-    gfx_draw_text(x, y, text, fg, COLOR_TRANSPARENT);
+    if (src[source_offset] != '\0') truncated = 1;
+    if (truncated && written < sizeof(text) - 2u) text[written++] = '~';
+    text[written] = '\0';
+
+    gfx_draw_utf8(x, y, text, fg, COLOR_TRANSPARENT);
 }
 
 void launcher_run(void) {
@@ -166,7 +191,8 @@ void launcher_run(void) {
             int_to_dec(app->size, size_buf);
             draw_truncated(204, 88, size_buf, 12, COLOR_WHITE);
             gfx_draw_text(204, 106, "Source:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
-            gfx_draw_text(204, 118, app->removable ? "External" : "Built-in",
+            gfx_draw_text(204, 118, app->persistent ? "Disk" :
+                          (app->removable ? "External" : "Built-in"),
                           COLOR_WHITE, COLOR_TRANSPARENT);
 
             gfx_draw_text(204, 138, "D: remove", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
