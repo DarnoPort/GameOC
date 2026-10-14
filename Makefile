@@ -220,7 +220,7 @@ run: $(KERNEL_BIN) ensure-data-disk
 	@echo "Запуск CustomOS в QEMU..."
 	$(QEMU) -kernel $(KERNEL_BIN) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
-test:
+test: $(BUILD_APP_DIR)/app_fs_test.cbx
 	@PYTHONPATH=tools $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 clean:
