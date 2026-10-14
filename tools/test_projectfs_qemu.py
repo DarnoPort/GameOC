@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import socket
 import struct
@@ -95,7 +96,7 @@ def monitor_command(channel: socket.socket, command: str, delay: float = 0.15) -
     read_monitor_responses(channel)
 
 
-def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path: Path) -> None:
+def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path: Path, screenshot_path: Path) -> str:
     command = [
         qemu,
         "-machine", "pc",
@@ -139,6 +140,8 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
         monitor_command(channel, "sendkey ret", 0.7)
         # ProjectFS operations run synchronously inside the diagnostic app.
         time.sleep(1.0)
+        monitor_command(channel, f"screendump {screenshot_path}", 0.3)
+        screen_status = decode_status_line(screenshot_path)
         monitor_command(channel, "sendkey esc", 0.25)
         monitor_command(channel, "quit", 0.2)
         try:
@@ -147,6 +150,7 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
             process.terminate()
             process.wait(timeout=5.0)
             fail("QEMU did not shut down after monitor quit")
+        return screen_status
     finally:
         if channel is not None:
             channel.close()
@@ -162,6 +166,58 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
         except FileNotFoundError:
             pass
 
+
+def decode_status_line(screenshot_path: Path) -> str:
+    """Decode the ASCII status row rendered with CustomOS's own 8x8 font."""
+    image = screenshot_path.read_bytes()
+    header = re.match(rb"^P6\\s+(\\d+)\\s+(\\d+)\\s+255\\s", image)
+    if header is None:
+        return "SCREENSHOT_UNREADABLE"
+    width, height = int(header.group(1)), int(header.group(2))
+    pixels = image[header.end():]
+    if width % 320 or height % 200 or len(pixels) < width * height * 3:
+        return f"SCREENSHOT_SIZE_{width}x{height}"
+    sx, sy = width // 320, height // 200
+
+    font_source = (ROOT / "src/kernel/font8x8.h").read_text(encoding="utf-8")
+    glyphs = []
+    for block in re.findall(r"\\{([^{}]+)\\}", font_source):
+        values = [int(value, 16) for value in re.findall(r"0x([0-9A-Fa-f]{2})", block)]
+        if len(values) == 8:
+            glyphs.append(values)
+    if len(glyphs) < 128:
+        return "FONT_DECODE_FAILED"
+
+    def pixel_rgb(x: int, y: int) -> bytes:
+        px = ((y * sy + sy // 2) * width + (x * sx + sx // 2)) * 3
+        return pixels[px:px + 3]
+
+    decoded = []
+    for index in range(38):
+        cell_x = 18 + index * 8
+        if cell_x + 8 > 320:
+            break
+        match_code = None
+        for code in range(32, 127):
+            valid = True
+            for row in range(8):
+                bits = glyphs[code][row]
+                for col in range(8):
+                    pixel = pixel_rgb(cell_x + col, 62 + row)
+                    should_be_white = ((bits >> col) & 1) != 0
+                    if should_be_white and pixel != b"\\xff\\xff\\xff":
+                        valid = False
+                        break
+                    if not should_be_white and pixel != b"\\x00\\x00\\x00":
+                        valid = False
+                        break
+                if not valid:
+                    break
+            if valid:
+                match_code = code
+                break
+        decoded.append(chr(match_code) if match_code is not None else "?")
+    return "".join(decoded).rstrip()
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -191,20 +247,24 @@ def main() -> int:
 
             format_image(str(disk))
             create_appfs(str(appfs), [str(app)])
-            run_one_boot(qemu, kernel, appfs, disk, work / "monitor-1.sock")
+            first_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-1.sock",
+                                        work / "screen-1.ppm")
+            print(f"[QEMU-TEST] First boot screen: {first_status!r}")
             first_result = inspect_file(disk, FS_RESULT)
             marker = inspect_file(disk, FS_MARKER)
             if first_result != b"MARKER_CREATED":
-                fail(f"first boot result was {first_result!r}, expected MARKER_CREATED")
+                fail(f"first boot result was {first_result!r}, expected MARKER_CREATED; screen={first_status!r}")
             if marker is None or not marker.startswith(b"CustomOS ProjectFS persistence marker"):
                 fail("first boot did not persist the expected marker file")
             print("[QEMU-TEST] First boot wrote a marker to the IDE disk.")
 
-            run_one_boot(qemu, kernel, appfs, disk, work / "monitor-2.sock")
+            second_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-2.sock",
+                                         work / "screen-2.ppm")
+            print(f"[QEMU-TEST] Second boot screen: {second_status!r}")
             second_result = inspect_file(disk, FS_RESULT)
             marker_after_reboot = inspect_file(disk, FS_MARKER)
             if second_result != b"PERSISTENCE_PASS":
-                fail(f"second boot result was {second_result!r}, expected PERSISTENCE_PASS")
+                fail(f"second boot result was {second_result!r}, expected PERSISTENCE_PASS; screen={second_status!r}")
             if marker_after_reboot != marker:
                 fail("persistent marker changed between boots")
             print("[QEMU-TEST] Second boot read the prior marker successfully.")
