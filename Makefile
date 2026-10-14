@@ -1,5 +1,5 @@
 # ==============================================================================
-# CustomOS - Automated Build System (Stage 7)
+# CustomOS - Automated Build System (Stage 8)
 # ==============================================================================
 
 CC      := gcc
@@ -20,6 +20,8 @@ SRC_DIR       := src
 
 KERNEL_BIN    := $(BIN_DIR)/customos.elf
 APPFS_IMG     := $(BUILD_DIR)/appfs.img
+EXTERNAL_APPFS_IMG := $(BUILD_DIR)/external_apps.img
+EXTERNAL_CBX ?=
 
 # Список приложений CustomOS
 APPS_CBX      := $(BUILD_APP_DIR)/app_test.cbx \
@@ -44,7 +46,7 @@ OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/app_registry.o \
         $(BUILD_DIR)/launcher.o
 
-.PHONY: all clean run build_dirs
+.PHONY: all clean run build_dirs external-apps run-external
 
 all: $(KERNEL_BIN)
 
@@ -128,6 +130,19 @@ $(BUILD_APP_DIR)/app_game.cbx: $(BUILD_APP_DIR)/app_game.elf tools/cbxpack.py | 
 $(APPFS_IMG): $(APPS_CBX) tools/mkappfs.py | build_dirs
 	@echo "[MKAPPFS] $(APPS_CBX) -> $@"
 	@$(PYTHON) tools/mkappfs.py $@ $(APPS_CBX)
+
+# --- External package: make run-external EXTERNAL_CBX="path/app1.cbx path/app2.cbx" ---
+# CBX files are packed into a separate AppFS module passed to the Multiboot loader.
+external-apps: build_dirs
+	@if [ -z "$(strip $(EXTERNAL_CBX))" ]; then \
+		echo "Usage: make external-apps EXTERNAL_CBX='path/to/app.cbx [path/to/another.cbx]'"; \
+		exit 2; \
+	fi
+	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(EXTERNAL_CBX)
+
+run-external: $(KERNEL_BIN) external-apps
+	@echo "Запуск CustomOS с внешним пакетом $(EXTERNAL_APPFS_IMG)..."
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG)
 
 # --- Сборка компонентов ядра ---
 $(BUILD_DIR)/boot.o: $(SRC_DIR)/boot/boot.asm | build_dirs
