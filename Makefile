@@ -147,7 +147,7 @@ external-demo: $(BUILD_APP_DIR)/external_demo.cbx
 run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx ensure-data-disk | build_dirs
 	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(BUILD_APP_DIR)/external_demo.cbx
 	@echo "Запуск CustomOS с тестовым внешним приложением..."
-	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0 -drive file=$(DATA_DISK),format=raw,if=ide,index=0
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
 # Persistent ProjectFS data disk. The image is outside build/ so make clean keeps user data.
 ensure-data-disk:
@@ -169,7 +169,7 @@ external-apps: build_dirs
 
 run-external: $(KERNEL_BIN) external-apps ensure-data-disk
 	@echo "Запуск CustomOS с внешним пакетом $(EXTERNAL_APPFS_IMG)..."
-	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG)
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
 # --- Сборка компонентов ядра ---
 $(BUILD_DIR)/boot.o: $(SRC_DIR)/boot/boot.asm | build_dirs
