@@ -37,7 +37,6 @@ static void draw_truncated(int x, int y, const char *src,
     }
     text[i] = '\0';
     if (src[i] != '\0' && i > 0) text[i - 1] = '~';
-    api_unused:
     gfx_draw_text(x, y, text, fg, COLOR_TRANSPARENT);
 }
 
@@ -75,14 +74,6 @@ void launcher_run(void) {
                 const registered_app_t *app = app_registry_get(selected);
                 if (app) {
                     int last_exit_code;
-                    char launched_name[32];
-                    uint32_t i = 0;
-                    while (i + 1 < sizeof(launched_name) && app->name[i] != '\0') {
-                        launched_name[i] = app->name[i];
-                        i++;
-                    }
-                    launched_name[i] = '\0';
-
                     last_exit_code = app_registry_launch(selected);
                     (void)last_exit_code;
                     gfx_init();
