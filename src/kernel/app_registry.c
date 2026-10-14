@@ -430,28 +430,7 @@ int app_registry_remove(int index) {
     }
     registered_count--;
 
-    /* Compact the remaining external binaries and update all their pointers. */
-    uint32_t new_used = 0;
-    for (int i = 0; i < registered_count; i++) {
-        registered_app_t *app = &registered_apps[i];
-        if (!app->removable && !app->persistent) continue;
-
-        uint32_t old_offset = app->storage_offset;
-        if (old_offset != new_used) {
-            for (uint32_t j = 0; j < app->size; j++) {
-                app_store_base[new_used + j] = app_store_base[old_offset + j];
-            }
-        }
-
-        app->storage_offset = new_used;
-        app->data = app_store_base + new_used;
-        new_used += app->size;
-    }
-
-    for (uint32_t i = new_used; i < app_store_used; i++) {
-        app_store_base[i] = 0;
-    }
-    app_store_used = new_used;
+    compact_app_store();
 
     registered_apps[registered_count].filename[0] = '\0';
     registered_apps[registered_count].name[0] = '\0';
