@@ -136,7 +136,7 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
         # persistence test is imported as item 6.
         for _ in range(5):
             monitor_command(channel, "sendkey down", 0.18)
-        monitor_command(channel, "sendkey enter", 0.7)
+        monitor_command(channel, "sendkey ret", 0.7)
         # ProjectFS operations run synchronously inside the diagnostic app.
         time.sleep(1.0)
         monitor_command(channel, "sendkey esc", 0.25)
