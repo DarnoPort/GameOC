@@ -34,9 +34,14 @@ static void expect_compile_error(const char *source, vn_error_code_t expected,
                                  uint32_t expected_line, const char *description) {
     int result = compile_source(source);
     CHECK(result == 0, description);
-    CHECK(error.code == expected, "error code matches");
-    CHECK(error.line == expected_line, "diagnostic line matches");
-    CHECK(error.message != NULL, "error has a readable message");
+    if (error.code != expected || error.line != expected_line) {
+        printf("EXPECT ERROR [%s]: result=%d got code=%d line=%u; expected code=%d line=%u\n",
+               description, result, (int)error.code, error.line,
+               (int)expected, expected_line);
+    }
+    CHECK(error.code == expected, description);
+    CHECK(error.line == expected_line, description);
+    CHECK(error.message != NULL, description);
 }
 
 static int event_text_is(const vn_event_t *actual, const char *expected) {
@@ -192,6 +197,46 @@ static void test_syntax_errors(void) {
         VN_ERR_NO_LABELS, 0, "reject a file with no labels");
 }
 
+
+static void test_utf8_labels_and_validation(void) {
+    static const char russian_source[] =
+        "label начало:\n"
+        "Добро пожаловать в историю;\n"
+        "jump лес;\n"
+        "label лес:\n"
+        "Ты вошёл в лес;\n"
+        "return;\n";
+    static const char invalid_utf8[] = {
+        'l','a','b','e','l',' ','o','k',':','\n',
+        'T','e','x','t',' ',(char)0xC3,(char)0x28,';','\n',
+        'r','e','t','u','r','n',';','\n'
+    };
+
+    CHECK(vn_compile(russian_source, sizeof(russian_source) - 1u,
+                     &program, &error) == 1,
+          "compile UTF-8 scenario with Russian labels and dialogue");
+    CHECK(vn_runtime_start(&runtime, &program, "начало", &error) == 1,
+          "start the scenario at a Russian label");
+    CHECK(vn_runtime_next(&runtime, &event, &error) == VN_EVENT_TEXT,
+          "UTF-8 scenario begins with dialogue");
+    CHECK(event_text_is(&event, "Добро пожаловать в историю"),
+          "Russian dialogue bytes are preserved");
+    CHECK(vn_runtime_next(&runtime, &event, &error) == VN_EVENT_TEXT,
+          "jump to a Russian label works");
+    CHECK(event_text_is(&event, "Ты вошёл в лес"),
+          "dialogue after a Russian jump is preserved");
+    CHECK(vn_runtime_next(&runtime, &event, &error) == VN_EVENT_END,
+          "Russian-label scenario returns normally");
+
+    CHECK(vn_compile(invalid_utf8, sizeof(invalid_utf8),
+                     &program, &error) == 0,
+          "reject malformed UTF-8 source");
+    CHECK(error.code == VN_ERR_INVALID_UTF8,
+          "malformed UTF-8 has its own diagnostic");
+    CHECK(error.line == 2,
+          "malformed UTF-8 reports the correct source line");
+}
+
 static void test_invalid_sources_and_runtime_limits(void) {
     CHECK(vn_compile("", 0, &program, &error) == 0,
           "reject an empty source string");
@@ -234,6 +279,7 @@ int main(void) {
     test_branch_runtime();
     test_escaped_semicolon();
     test_syntax_errors();
+    test_utf8_labels_and_validation();
     test_invalid_sources_and_runtime_limits();
 
     if (failures != 0) {
