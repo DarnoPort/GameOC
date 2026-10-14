@@ -618,6 +618,14 @@ int vn_compile(const char *source, uint32_t source_length,
     return 1;
 }
 
+static int vn_pool_string_terminated(const vn_program_t *program, uint32_t offset) {
+    if (program == NULL || offset >= program->string_used) return 0;
+    for (uint32_t i = offset; i < program->string_used; i++) {
+        if (program->strings[i] == '\0') return 1;
+    }
+    return 0;
+}
+
 static int vn_program_basic_valid(const vn_program_t *program) {
     if (program == NULL || program->magic != VN_PROGRAM_MAGIC) return 0;
     if (program->instruction_count == 0 ||
@@ -631,7 +639,8 @@ static int vn_program_basic_valid(const vn_program_t *program) {
         const vn_label_t *label = &program->labels[i];
         if (label->name_offset >= program->string_used ||
             label->target_pc >= program->instruction_count ||
-            program->strings[label->name_offset] == '\0') return 0;
+            program->strings[label->name_offset] == '\0' ||
+            !vn_pool_string_terminated(program, label->name_offset)) return 0;
     }
     for (uint32_t i = 0; i < program->menu_count; i++) {
         const vn_menu_t *menu = &program->menus[i];
@@ -643,7 +652,8 @@ static int vn_program_basic_valid(const vn_program_t *program) {
     for (uint32_t i = 0; i < program->choice_count; i++) {
         const vn_choice_t *choice = &program->choices[i];
         if (choice->text_offset >= program->string_used ||
-            choice->target_pc >= program->instruction_count) return 0;
+            choice->target_pc >= program->instruction_count ||
+            !vn_pool_string_terminated(program, choice->text_offset)) return 0;
     }
     for (uint32_t i = 0; i < program->instruction_count; i++) {
         const vn_instruction_t *instruction = &program->instructions[i];
@@ -695,7 +705,16 @@ vn_event_type_t vn_runtime_next(vn_runtime_t *runtime,
     }
     vn_zero(event, (uint32_t)sizeof(*event));
 
-    if (runtime == NULL || !vn_program_basic_valid(runtime->program)) {
+    if (runtime == NULL || runtime->program == NULL ||
+        runtime->program->magic != VN_PROGRAM_MAGIC ||
+        runtime->program->instruction_count == 0 ||
+        runtime->program->instruction_count > VN_MAX_INSTRUCTIONS ||
+        runtime->program->pc > runtime->program->instruction_count ||
+        runtime->program->label_count == 0 ||
+        runtime->program->label_count > VN_MAX_LABELS ||
+        runtime->program->menu_count > VN_MAX_MENUS ||
+        runtime->program->choice_count > VN_MAX_CHOICES ||
+        runtime->program->string_used > VN_STRING_POOL_CAPACITY) {
         vn_set_error(error, VN_ERR_BAD_PROGRAM, 0);
         event->type = VN_EVENT_ERROR;
         return event->type;
@@ -724,6 +743,14 @@ vn_event_type_t vn_runtime_next(vn_runtime_t *runtime,
         event->line = instruction->line;
 
         if (instruction->opcode == VN_OP_TEXT) {
+            if (instruction->a >= program->string_used ||
+                instruction->b >= program->string_used - instruction->a ||
+                program->strings[instruction->a + instruction->b] != '\0') {
+                runtime->finished = 1;
+                vn_set_error(error, VN_ERR_BAD_PROGRAM, instruction->line);
+                event->type = VN_EVENT_ERROR;
+                return event->type;
+            }
             event->type = VN_EVENT_TEXT;
             event->text = program->strings + instruction->a;
             event->text_length = instruction->b;
@@ -731,6 +758,12 @@ vn_event_type_t vn_runtime_next(vn_runtime_t *runtime,
         }
 
         if (instruction->opcode == VN_OP_MENU) {
+            if (instruction->a >= program->menu_count) {
+                runtime->finished = 1;
+                vn_set_error(error, VN_ERR_BAD_PROGRAM, instruction->line);
+                event->type = VN_EVENT_ERROR;
+                return event->type;
+            }
             const vn_menu_t *menu = &program->menus[instruction->a];
             runtime->waiting_menu = instruction->a;
             runtime->waiting_for_choice = 1;
@@ -741,11 +774,25 @@ vn_event_type_t vn_runtime_next(vn_runtime_t *runtime,
         }
 
         if (instruction->opcode == VN_OP_JUMP) {
+            if (instruction->a >= program->label_count ||
+                program->labels[instruction->a].target_pc >= program->instruction_count) {
+                runtime->finished = 1;
+                vn_set_error(error, VN_ERR_BAD_PROGRAM, instruction->line);
+                event->type = VN_EVENT_ERROR;
+                return event->type;
+            }
             runtime->pc = program->labels[instruction->a].target_pc;
             continue;
         }
 
         if (instruction->opcode == VN_OP_CHOICE_END) {
+            if (instruction->a >= program->menu_count ||
+                program->menus[instruction->a].after_pc > program->instruction_count) {
+                runtime->finished = 1;
+                vn_set_error(error, VN_ERR_BAD_PROGRAM, instruction->line);
+                event->type = VN_EVENT_ERROR;
+                return event->type;
+            }
             runtime->pc = program->menus[instruction->a].after_pc;
             continue;
         }
@@ -778,6 +825,9 @@ int vn_runtime_choose(vn_runtime_t *runtime, uint32_t choice_index,
         return vn_set_error(error, VN_ERR_BAD_PROGRAM, 0);
     }
 
+    if (runtime->waiting_menu >= runtime->program->menu_count) {
+        return vn_set_error(error, VN_ERR_BAD_PROGRAM, 0);
+    }
     const vn_menu_t *menu = &runtime->program->menus[runtime->waiting_menu];
     if (choice_index >= menu->choice_count) {
         return vn_set_error(error, VN_ERR_CHOICE_OUT_OF_RANGE, menu->line);
