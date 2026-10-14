@@ -11,6 +11,8 @@
 #define VN_MAX_MENUS               512u
 #define VN_MAX_CHOICES             1024u
 #define VN_MAX_IDENTIFIER_LENGTH   31u
+#define VN_MAX_TEXT_BYTES           512u
+#define VN_MAX_CHOICES_PER_MENU     16u
 #define VN_MAX_RUNTIME_STEPS       8192u
 
 typedef enum {
@@ -84,6 +86,7 @@ typedef enum {
     VN_ERR_STRING_POOL_FULL,
     VN_ERR_EXPECTED_SEMICOLON,
     VN_ERR_EMPTY_TEXT,
+    VN_ERR_TEXT_TOO_LARGE,
     VN_ERR_UNESCAPED_SEMICOLON,
     VN_ERR_BAD_COMMAND_SYNTAX,
     VN_ERR_INVALID_JUMP_TARGET,
