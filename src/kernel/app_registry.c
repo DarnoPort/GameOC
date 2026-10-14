@@ -232,6 +232,7 @@ int app_registry_external_available(void) {
 int app_registry_install_external(void) {
     if (!app_registry_external_available()) return -1;
     if (app_store_base == NULL || app_store_size == 0) return -3;
+    if (registered_count >= MAX_REGISTERED_APPS) return -4;
 
     uint32_t count = 0;
     int result = validate_appfs(external_appfs, external_appfs_size, &count);
@@ -247,7 +248,10 @@ int app_registry_install_external(void) {
         int item_result = append_entry(external_appfs, external_appfs_size,
                                        table_end, &entries[i], 1);
         if (item_result > 0) added++;
-        if (item_result < 0) break;
+        if (item_result < 0) {
+            if (added > 0) return added;
+            return (registered_count >= MAX_REGISTERED_APPS) ? -4 : -3;
+        }
     }
 
     return added;
