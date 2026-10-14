@@ -234,10 +234,12 @@ int app_registry_external_available(void) {
 
 static int is_persistent_game_filename(const char *filename) {
     if (filename == NULL) return 0;
+    uint32_t length = 0;
+    while (length < 16u && filename[length] != '\0') length++;
+    if (length != 14u) return 0;
     if (filename[0] != 'G' || filename[1] != '_' ||
         filename[10] != '.' || filename[11] != 'C' ||
-        filename[12] != 'B' || filename[13] != 'X' ||
-        filename[14] != '\0') return 0;
+        filename[12] != 'B' || filename[13] != 'X') return 0;
     for (uint32_t i = 2; i < 10; i++) {
         char c = filename[i];
         if (!((c >= '0' && c <= '9') ||
