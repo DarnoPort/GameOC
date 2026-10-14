@@ -1,0 +1,17 @@
+label start:
+    Welcome to standalone player test;
+    menu:
+        First route:
+            You selected route one;
+            jump ending;
+        endchoice;
+        Second route:
+            You selected route two;
+            return;
+        endchoice;
+    endmenu;
+    return;
+
+label ending:
+    Route one reached;
+    return;
