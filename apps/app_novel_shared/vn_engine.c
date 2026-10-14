@@ -498,7 +498,8 @@ static int vn_parse_menu(vn_parser_t *parser, const vn_line_t *menu_line) {
             return vn_set_error(parser->error, VN_ERR_UNKNOWN_COMMAND, line.line);
         }
         if (!vn_line_ends_with(&line, ':')) {
-            return vn_set_error(parser->error, VN_ERR_BAD_NESTING, line.line);
+            /* Only choice headers or endmenu; are legal at this nesting level. */
+            return vn_set_error(parser->error, VN_ERR_EXPECTED_ENDMENU, line.line);
         }
 
         uint32_t title_length = line.length - 1u;
