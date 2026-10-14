@@ -32,4 +32,7 @@ SECTIONS
         *(.comment)
         *(.eh_frame)
     }
+
+    /* Used to select safe RAM for imported application storage. */
+    _kernel_end = .;
 }
