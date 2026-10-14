@@ -170,7 +170,7 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
 def decode_status_line(screenshot_path: Path) -> str:
     """Decode the ASCII status row rendered with CustomOS's own 8x8 font."""
     image = screenshot_path.read_bytes()
-    header = re.match(rb"^P6\\s+(\\d+)\\s+(\\d+)\\s+255\\s", image)
+    header = re.match(rb"^P6\s+(\d+)\s+(\d+)\s+255\s", image)
     if header is None:
         return "SCREENSHOT_UNREADABLE"
     width, height = int(header.group(1)), int(header.group(2))
@@ -181,7 +181,7 @@ def decode_status_line(screenshot_path: Path) -> str:
 
     font_source = (ROOT / "src/kernel/font8x8.h").read_text(encoding="utf-8")
     glyphs = []
-    for block in re.findall(r"\\{([^{}]+)\\}", font_source):
+    for block in re.findall(r"\{([^{}]+)\}", font_source):
         values = [int(value, 16) for value in re.findall(r"0x([0-9A-Fa-f]{2})", block)]
         if len(values) == 8:
             glyphs.append(values)
@@ -205,10 +205,10 @@ def decode_status_line(screenshot_path: Path) -> str:
                 for col in range(8):
                     pixel = pixel_rgb(cell_x + col, 62 + row)
                     should_be_white = ((bits >> col) & 1) != 0
-                    if should_be_white and pixel != b"\\xff\\xff\\xff":
+                    if should_be_white and pixel != b"\xff\xff\xff":
                         valid = False
                         break
-                    if not should_be_white and pixel != b"\\x00\\x00\\x00":
+                    if not should_be_white and pixel != b"\x00\x00\x00":
                         valid = False
                         break
                 if not valid:
