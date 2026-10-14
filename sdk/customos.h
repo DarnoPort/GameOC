@@ -23,7 +23,7 @@ typedef signed int         int32_t;
 #define KEY_LEFT  0x82
 #define KEY_RIGHT 0x83
 
-/* Системный API CustomOS */
+/* Системный API CustomOS. Версия 2 добавляет постоянное файловое хранилище. */
 typedef struct customos_api {
     uint32_t version;
 
