@@ -1,0 +1,33 @@
+name: CustomOS build and tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install NASM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm
+      - name: Build CustomOS
+        run: |
+          make clean
+          make
+      - name: Test formatter and repository checks when defined
+        run: |
+          if grep -q '^test:' Makefile; then
+            make test
+          else
+            echo "No host test target in this revision."
+          fi
