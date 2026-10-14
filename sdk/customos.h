@@ -23,7 +23,7 @@ typedef signed int         int32_t;
 #define KEY_LEFT  0x82
 #define KEY_RIGHT 0x83
 
-/* Системный API CustomOS. Версия 2 добавляет постоянное файловое хранилище. */
+/* CustomOS API: v2 persistent files, v3 UTF-8 input/rendering, v4 app install. */
 typedef struct customos_api {
     uint32_t version;
 
@@ -65,6 +65,8 @@ typedef struct customos_api {
     uint32_t (*kbd_get_codepoint)(void);
     uint32_t (*kbd_wait_codepoint)(void);
     int32_t  (*kbd_russian_layout)(void);
+    /* API v4: register/update a valid G_XXXXXXXX.CBX stored on ProjectFS. */
+    int32_t  (*app_install_persistent)(const char *filename);
 } customos_api_t;
 
 /* Обязательная точка входа приложений CustomOS */
