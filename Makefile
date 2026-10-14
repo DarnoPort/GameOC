@@ -49,7 +49,7 @@ OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/app_registry.o \
         $(BUILD_DIR)/launcher.o
 
-.PHONY: all clean run build_dirs ensure-data-disk external-apps run-external external-demo run-external-demo test
+.PHONY: all clean run build_dirs ensure-data-disk external-apps run-external external-demo run-external-demo run-fs-test test
 
 all: $(KERNEL_BIN)
 
@@ -147,6 +147,25 @@ external-demo: $(BUILD_APP_DIR)/external_demo.cbx
 run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx ensure-data-disk | build_dirs
 	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(BUILD_APP_DIR)/external_demo.cbx
 	@echo "Запуск CustomOS с тестовым внешним приложением..."
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
+
+
+# ProjectFS persistence diagnostic (kept external; not included in the regular launcher).
+$(BUILD_APP_DIR)/app_fs_test.o: apps/app_fs_test/app_fs_test.c sdk/customos.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -nostdlib -Wall -Wextra -O2 -I sdk/ -c $< -o $@
+
+$(BUILD_APP_DIR)/app_fs_test.elf: $(BUILD_APP_DIR)/app_fs_test.o | build_dirs
+	@echo "[APP-LD] $< -> $@"
+	@$(LD) -m elf_i386 -T sdk/app.ld $< -o $@
+
+$(BUILD_APP_DIR)/app_fs_test.cbx: $(BUILD_APP_DIR)/app_fs_test.elf tools/cbxpack.py | build_dirs
+	@echo "[CBXPACK] $< -> $@"
+	@$(PYTHON) tools/cbxpack.py $< $@ --name "FsPersistTest" --desc "ProjectFS persistence test"
+
+run-fs-test: $(KERNEL_BIN) $(BUILD_APP_DIR)/app_fs_test.cbx ensure-data-disk | build_dirs
+	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(BUILD_APP_DIR)/app_fs_test.cbx
+	@echo "Запуск CustomOS с диагностическим приложением ProjectFS..."
 	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
 # Persistent ProjectFS data disk. The image is outside build/ so make clean keeps user data.
