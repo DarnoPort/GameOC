@@ -29,7 +29,8 @@ APPS_CBX      := $(BUILD_APP_DIR)/app_test.cbx \
                  $(BUILD_APP_DIR)/app_info.cbx \
                  $(BUILD_APP_DIR)/app_text.cbx \
                  $(BUILD_APP_DIR)/app_calc.cbx \
-                 $(BUILD_APP_DIR)/app_game.cbx
+                 $(BUILD_APP_DIR)/app_game.cbx \
+                 $(BUILD_APP_DIR)/app_novel_editor.cbx
 
 OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/isr_asm.o \
@@ -129,6 +130,31 @@ $(BUILD_APP_DIR)/app_game.cbx: $(BUILD_APP_DIR)/app_game.elf tools/cbxpack.py | 
 	@echo "[CBXPACK] $< -> $@"
 	@$(PYTHON) tools/cbxpack.py $< $@ --name "Dodge" --desc "Stage 7: Game Engine & Dodge"
 
+
+# Shared bounded visual-novel engine and CBX resource packer.
+$(BUILD_APP_DIR)/vn_engine.o: apps/app_novel_shared/vn_engine.c apps/app_novel_shared/vn_engine.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -fno-builtin -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_novel_shared/ -c $< -o $@
+
+$(BUILD_APP_DIR)/vn_package.o: apps/app_novel_shared/vn_package.c apps/app_novel_shared/vn_package.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -fno-builtin -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_novel_shared/ -c $< -o $@
+
+$(BUILD_APP_DIR)/app_novel_player.o: apps/app_novel_player/app_novel_player.c apps/app_novel_shared/vn_engine.h apps/app_novel_shared/vn_package.h sdk/customos.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -fno-builtin -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_novel_shared/ -c $< -o $@
+
+$(BUILD_APP_DIR)/app_novel_player.elf: $(BUILD_APP_DIR)/app_novel_player.o $(BUILD_APP_DIR)/vn_engine.o $(BUILD_APP_DIR)/vn_package.o | build_dirs
+	@echo "[APP-LD] $^ -> $@"
+	@$(LD) -m elf_i386 -T sdk/app.ld $^ -o $@
+
+$(BUILD_APP_DIR)/app_novel_player.cbx: $(BUILD_APP_DIR)/app_novel_player.elf tools/cbxpack.py | build_dirs
+	@echo "[CBXPACK] $< -> $@"
+	@$(PYTHON) tools/cbxpack.py $< $@ --name "NovelPlayer" --desc "Standalone Visual Novel Player"
+
+$(BUILD_APP_DIR)/novel_player_template.h: $(BUILD_APP_DIR)/app_novel_player.cbx tools/bin2c.py | build_dirs
+	@$(PYTHON) tools/bin2c.py $< $@ --symbol vn_player_template
+
 # Standalone demo used to test the external-app import path (not built into AppFS).
 $(BUILD_APP_DIR)/external_demo.o: apps/external_demo/external_demo.c sdk/customos.h | build_dirs
 	@echo "[APP-CC] $< -> $@"
@@ -158,6 +184,12 @@ $(BUILD_DIR)/tests/vn_engine_test: apps/app_novel_shared/vn_engine.c apps/app_no
 	@mkdir -p $(BUILD_DIR)/tests
 	@echo "[HOST-TEST-CC] scenario parser and runtime"
 	@$(HOSTCC) -std=c11 -Wall -Wextra -Werror -O2 -I apps/app_novel_shared apps/app_novel_shared/vn_engine.c tests/vn_engine_test.c -o $@
+
+
+$(BUILD_DIR)/tests/vn_package_test: apps/app_novel_shared/vn_package.c apps/app_novel_shared/vn_package.h tests/vn_package_test.c | build_dirs
+	@mkdir -p $(BUILD_DIR)/tests
+	@echo "[HOST-TEST-CC] novel CBX packer"
+	@$(HOSTCC) -std=c11 -Wall -Wextra -Werror -O2 -I apps/app_novel_shared apps/app_novel_shared/vn_package.c tests/vn_package_test.c -o $@
 
 # ProjectFS persistence diagnostic (kept external; not included in the regular launcher).
 $(BUILD_APP_DIR)/app_fs_test.o: apps/app_fs_test/app_fs_test.c sdk/customos.h | build_dirs
@@ -229,8 +261,9 @@ run: $(KERNEL_BIN) ensure-data-disk
 	@echo "Запуск CustomOS в QEMU..."
 	$(QEMU) -kernel $(KERNEL_BIN) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
-test: $(BUILD_APP_DIR)/app_fs_test.cbx $(BUILD_DIR)/tests/vn_engine_test
+test: $(BUILD_APP_DIR)/app_fs_test.cbx $(BUILD_DIR)/tests/vn_engine_test $(BUILD_DIR)/tests/vn_package_test $(BUILD_APP_DIR)/app_novel_player.cbx $(BUILD_APP_DIR)/novel_player_template.h
 	@$(BUILD_DIR)/tests/vn_engine_test
+	@$(BUILD_DIR)/tests/vn_package_test
 	@PYTHONPATH=tools $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 clean:
