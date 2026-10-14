@@ -41,11 +41,11 @@ static const char default_script[] =
     "    return;\n";
 
 static const char *const main_items[] = {
-    "New project",
-    "Open project",
-    "Continue editing",
-    "About / help",
-    "Exit to CustomOS"
+    "Новый проект",
+    "Открыть проект",
+    "Продолжить",
+    "Справка",
+    "Выход в CustomOS"
 };
 #define MAIN_ITEM_COUNT ((uint32_t)(sizeof(main_items) / sizeof(main_items[0])))
 
@@ -222,6 +222,30 @@ static int parse_project_id(const char *filename, char expected_prefix,
     }
     *id_out = id;
     return 1;
+}
+
+
+static void format_line_error(char *out, uint32_t capacity, uint32_t line,
+                              const char *message) {
+    if (capacity == 0) return;
+    uint32_t at = 0;
+    const char prefix[] = "Line ";
+    for (uint32_t i = 0; prefix[i] != '\0' && at + 1u < capacity; i++) out[at++] = prefix[i];
+    char reversed[12];
+    uint32_t digits = 0;
+    do {
+        reversed[digits++] = (char)('0' + line % 10u);
+        line /= 10u;
+    } while (line > 0 && digits < sizeof(reversed));
+    while (digits > 0 && at + 1u < capacity) out[at++] = reversed[--digits];
+    if (at + 2u < capacity) {
+        out[at++] = ':';
+        out[at++] = ' ';
+    }
+    if (message != NULL) {
+        for (uint32_t i = 0; message[i] != '\0' && at + 1u < capacity; i++) out[at++] = message[i];
+    }
+    out[at] = '\0';
 }
 
 static void set_status(const char *message) {
@@ -558,12 +582,6 @@ static void draw_editor(void) {
     uint32_t horizontal = cursor_column >= EDITOR_VISIBLE_COLUMNS
         ? cursor_column - EDITOR_VISIBLE_COLUMNS + 1u : 0u;
 
-    uint32_t visible_count = 0;
-    for (uint32_t i = 0; i < source_length; i++) {
-        if (source_buffer[i] == '\n' && line_number_at(i) >= view_top_line) visible_count++;
-    }
-    (void)visible_count;
-
     if (cursor_line < view_top_line) view_top_line = cursor_line;
     if (cursor_line >= view_top_line + EDITOR_VISIBLE_ROWS) {
         view_top_line = cursor_line - EDITOR_VISIBLE_ROWS + 1u;
@@ -671,13 +689,9 @@ static void ensure_save(void) {
 static void editor_test_run(void) {
     if (!vn_compile(source_buffer, source_length, &compiled_program, &compile_error)) {
         set_status("Check failed: fix the error shown.");
-        char message[128];
-        copy_text(message, sizeof(message), compile_error.message);
-        if (compile_error.line > 0) {
-            show_message("Scenario error", message);
-        } else {
-            show_message("Scenario error", message);
-        }
+        char message[160];
+        format_line_error(message, sizeof(message), compile_error.line, compile_error.message);
+        show_message("Ошибка сценария", message);
         return;
     }
     if (!vn_runtime_start(&test_runtime, &compiled_program, NULL, &compile_error)) {
@@ -703,8 +717,7 @@ static void editor_test_run(void) {
                     int y = 43 + (int)((i - first) * 12u);
                     if (i == selected) os_api->gfx_fill_rect(5, y - 2, 310, 11, COLOR_DARK_GRAY);
                     const char *title = compiled_program.strings + test_event.choices[i].text_offset;
-                    draw_text(title, 10, y, i == selected ? COLOR_WHITE : COLOR_LIGHT_GRAY,
-                              COLOR_TRANSPARENT);
+                    draw_wrapped(title, text_length(title), 10, y, 36, 1);
                 }
                 os_api->gfx_flip();
                 uint32_t key = next_key();
@@ -732,9 +745,9 @@ test_finished:
 static void editor_compile_project(void) {
     if (!has_project) return;
     if (!vn_compile(source_buffer, source_length, &compiled_program, &compile_error)) {
-        char message[128];
-        copy_text(message, sizeof(message), compile_error.message);
-        show_message("Build failed", message);
+        char message[160];
+        format_line_error(message, sizeof(message), compile_error.line, compile_error.message);
+        show_message("Ошибка сборки", message);
         set_status("Build failed; previous game was not changed.");
         return;
     }
@@ -801,10 +814,10 @@ static void editor_loop(void) {
             if (vn_compile(source_buffer, source_length, &compiled_program, &compile_error)) {
                 set_status("Scenario is valid.");
             } else {
-                char message[128];
-                copy_text(message, sizeof(message), compile_error.message);
-                show_message("Scenario validation failed", message);
-                set_status("Validation failed; see message.");
+                char message[160];
+                format_line_error(message, sizeof(message), compile_error.line, compile_error.message);
+                show_message("Ошибка проверки", message);
+                set_status("Scenario validation failed.");
             }
             continue;
         }
