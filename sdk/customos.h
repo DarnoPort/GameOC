@@ -50,6 +50,7 @@ typedef struct customos_api {
     void     (*timer_sleep)(uint32_t ms);
 
     void     (*exit)(int exit_code);
+\r\n    /* Persistent flat-file storage API (CustomOS API v2). Names are ASCII. */\r\n    int32_t  (*fs_available)(void);\r\n    int32_t  (*fs_count)(void);\r\n    int32_t  (*fs_name_at)(uint32_t index, char *name_out, uint32_t capacity);\r\n    int32_t  (*fs_size)(const char *name);\r\n    int32_t  (*fs_read)(const char *name, void *buffer, uint32_t capacity);\r\n    int32_t  (*fs_write)(const char *name, const void *buffer, uint32_t size);\r\n    int32_t  (*fs_delete)(const char *name);\r\n    int32_t  (*fs_rename)(const char *old_name, const char *new_name);
 } customos_api_t;
 
 /* Обязательная точка входа приложений CustomOS */
