@@ -50,7 +50,7 @@ OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/app_registry.o \
         $(BUILD_DIR)/launcher.o
 
-.PHONY: all clean run build_dirs ensure-data-disk external-apps run-external external-demo run-external-demo run-fs-test test
+.PHONY: all clean run build_dirs ensure-data-disk external-apps run-external external-demo run-external-demo run-fs-test test test-novel-player
 
 all: $(KERNEL_BIN)
 
@@ -203,6 +203,15 @@ $(BUILD_DIR)/tests/vn_package_test: apps/app_novel_shared/vn_package.c apps/app_
 	@mkdir -p $(BUILD_DIR)/tests
 	@echo "[HOST-TEST-CC] novel CBX packer"
 	@$(HOSTCC) -std=c11 -Wall -Wextra -Werror -O2 -I apps/app_novel_shared apps/app_novel_shared/vn_package.c tests/vn_package_test.c -o $@
+
+
+$(BUILD_DIR)/tools/pack_novel_player_host: tools/pack_novel_player_host.c apps/app_novel_shared/vn_package.c apps/app_novel_shared/vn_package.h apps/app_novel_shared/vn_engine.h | build_dirs
+	@mkdir -p $(BUILD_DIR)/tools
+	@echo "[HOST-CC] standalone player test packer"
+	@$(HOSTCC) -std=c11 -Wall -Wextra -Werror -O2 -I apps/app_novel_shared tools/pack_novel_player_host.c apps/app_novel_shared/vn_package.c -o $@
+
+test-novel-player: $(KERNEL_BIN) $(BUILD_APP_DIR)/app_novel_player.cbx $(BUILD_DIR)/tools/pack_novel_player_host
+	@python3 tools/test_novel_player_qemu.py --kernel $(KERNEL_BIN) --template $(BUILD_APP_DIR)/app_novel_player.cbx --packer $(BUILD_DIR)/tools/pack_novel_player_host
 
 # ProjectFS persistence diagnostic (kept external; not included in the regular launcher).
 $(BUILD_APP_DIR)/app_fs_test.o: apps/app_fs_test/app_fs_test.c sdk/customos.h | build_dirs
