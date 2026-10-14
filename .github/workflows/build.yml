@@ -20,10 +20,12 @@ jobs:
       - name: Install NASM
         run: |
           sudo apt-get update
-          sudo apt-get install -y nasm
+          sudo apt-get install -y nasm qemu-system-x86
       - name: Build CustomOS
         run: |
           make clean
           make
-      - name: Test persistent disk image formatter
+      - name: Test ProjectFS formatter and diagnostic application build
         run: make test
+      - name: Verify ProjectFS persistence across QEMU restart
+        run: python3 tools/test_projectfs_qemu.py --kernel bin/customos.elf --app build/apps/app_fs_test.cbx
