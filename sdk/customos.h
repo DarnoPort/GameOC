@@ -60,6 +60,11 @@ typedef struct customos_api {
     int32_t  (*fs_write)(const char *name, const void *buffer, uint32_t size);
     int32_t  (*fs_delete)(const char *name);
     int32_t  (*fs_rename)(const char *old_name, const char *new_name);
+    /* UTF-8 text and Unicode keyboard events (API v3). */
+    void     (*gfx_draw_utf8)(int x, int y, const char *str, uint8_t fg, int bg);
+    uint32_t (*kbd_get_codepoint)(void);
+    uint32_t (*kbd_wait_codepoint)(void);
+    int32_t  (*kbd_russian_layout)(void);
 } customos_api_t;
 
 /* Обязательная точка входа приложений CustomOS */
