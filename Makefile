@@ -46,7 +46,7 @@ OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/app_registry.o \
         $(BUILD_DIR)/launcher.o
 
-.PHONY: all clean run build_dirs external-apps run-external
+.PHONY: all clean run build_dirs external-apps run-external external-demo run-external-demo
 
 all: $(KERNEL_BIN)
 
@@ -125,6 +125,26 @@ $(BUILD_APP_DIR)/app_game.elf: $(BUILD_APP_DIR)/app_game.o $(BUILD_APP_DIR)/game
 $(BUILD_APP_DIR)/app_game.cbx: $(BUILD_APP_DIR)/app_game.elf tools/cbxpack.py | build_dirs
 	@echo "[CBXPACK] $< -> $@"
 	@$(PYTHON) tools/cbxpack.py $< $@ --name "Dodge" --desc "Stage 7: Game Engine & Dodge"
+
+# Standalone demo used to test the external-app import path (not built into AppFS).
+$(BUILD_APP_DIR)/external_demo.o: apps/external_demo/external_demo.c sdk/customos.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -nostdlib -Wall -Wextra -O2 -I sdk/ -c $< -o $@
+
+$(BUILD_APP_DIR)/external_demo.elf: $(BUILD_APP_DIR)/external_demo.o | build_dirs
+	@echo "[APP-LD] $< -> $@"
+	@$(LD) -m elf_i386 -T sdk/app.ld $< -o $@
+
+$(BUILD_APP_DIR)/external_demo.cbx: $(BUILD_APP_DIR)/external_demo.elf tools/cbxpack.py | build_dirs
+	@echo "[CBXPACK] $< -> $@"
+	@$(PYTHON) tools/cbxpack.py $< $@ --name "ExternalDemo" --desc "External App Transfer Test"
+
+external-demo: $(BUILD_APP_DIR)/external_demo.cbx
+
+run-external-demo: $(KERNEL_BIN) $(BUILD_APP_DIR)/external_demo.cbx | build_dirs
+	@$(PYTHON) tools/mkappfs.py $(EXTERNAL_APPFS_IMG) $(BUILD_APP_DIR)/external_demo.cbx
+	@echo "Запуск CustomOS с тестовым внешним приложением..."
+	$(QEMU) -kernel $(KERNEL_BIN) -initrd $(EXTERNAL_APPFS_IMG)
 
 # --- Сборка виртуального диска AppFS ---
 $(APPFS_IMG): $(APPS_CBX) tools/mkappfs.py | build_dirs
