@@ -57,7 +57,7 @@ static uint32_t string_length_bounded(const char *str, uint32_t limit) {
 }
 
 static int valid_name(const char *name) {
-    uint32_t length = string_length_bounded(name, PROJECTFS_NAME_MAX);
+    uint32_t length = string_length_bounded(name, PROJECTFS_NAME_MAX + 1u);
     if (length == 0 || length > PROJECTFS_NAME_MAX) return 0;
 
     for (uint32_t i = 0; i < length; i++) {
