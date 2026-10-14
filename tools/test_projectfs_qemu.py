@@ -250,6 +250,8 @@ def main() -> int:
             first_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-1.sock",
                                         work / "screen-1.ppm")
             print(f"[QEMU-TEST] First boot screen: {first_status!r}")
+            if not first_status.startswith("MARKER CREATED"):
+                fail(f"diagnostic app did not report first-boot state: {first_status!r}")
             first_result = inspect_file(disk, FS_RESULT)
             marker = inspect_file(disk, FS_MARKER)
             if first_result != b"MARKER_CREATED":
@@ -261,6 +263,8 @@ def main() -> int:
             second_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-2.sock",
                                          work / "screen-2.ppm")
             print(f"[QEMU-TEST] Second boot screen: {second_status!r}")
+            if not second_status.startswith("PERSISTENCE PASS"):
+                fail(f"diagnostic app did not report reboot success: {second_status!r}")
             second_result = inspect_file(disk, FS_RESULT)
             marker_after_reboot = inspect_file(disk, FS_MARKER)
             if second_result != b"PERSISTENCE_PASS":
