@@ -1,4 +1,5 @@
 #include "app_loader.h"
+#include "app_registry.h"
 #include "gfx.h"
 #include "vga.h"
 #include "keyboard.h"
@@ -17,7 +18,7 @@ static int api_initialized = 0;
 static void init_system_api(void) {
     if (api_initialized) return;
 
-    system_api.version = 3;
+    system_api.version = 4;
 
     /* Текстовые вызовы */
     system_api.print      = vga_print;
@@ -44,6 +45,7 @@ static void init_system_api(void) {
     system_api.kbd_get_codepoint = keyboard_get_codepoint;
     system_api.kbd_wait_codepoint = keyboard_wait_codepoint;
     system_api.kbd_russian_layout = keyboard_russian_layout;
+    system_api.app_install_persistent = app_registry_install_persistent;
 
     /* Время */
     system_api.timer_get_ticks = timer_get_ticks;
