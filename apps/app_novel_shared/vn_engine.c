@@ -1,4 +1,5 @@
 #include "vn_engine.h"
+#include <stddef.h>
 
 #define VN_INVALID_INDEX 0xFFFFFFFFu
 
