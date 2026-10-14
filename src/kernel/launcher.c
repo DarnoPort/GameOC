@@ -62,6 +62,7 @@ void launcher_run(void) {
                 if (installed > 0) status_message = "External apps added";
                 else if (installed == 0) status_message = "No new apps imported";
                 else if (installed == -1) status_message = "No external package";
+                else if (installed == -3) status_message = "No memory for apps";
                 else status_message = "External package invalid";
                 break;
             } else if (key == 'd' || key == 'D') {
@@ -77,7 +78,7 @@ void launcher_run(void) {
                     last_exit_code = app_registry_launch(selected);
                     (void)last_exit_code;
                     gfx_init();
-                    status_message = "App closed; RAM cleared";
+                    status_message = "App returned; RAM cleared";
                 }
                 break;
             }
