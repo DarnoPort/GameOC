@@ -168,7 +168,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/kernel/%.c | build_dirs
 $(KERNEL_BIN): $(OBJS) | build_dirs
 	@echo "[LD]  Component objects -> $@"
 	@$(LD) $(LDFLAGS) $(OBJS) -o $@
-	@echo "=== CustomOS Kernel Stage 6 successfully built: $@ ==="
+	@echo "=== CustomOS Kernel Stage 8 successfully built: $@ ==="
 
 run: $(KERNEL_BIN)
 	@echo "Запуск CustomOS в QEMU..."
