@@ -25,7 +25,8 @@ APPFS_IMG     := $(BUILD_DIR)/appfs.img
 APPS_CBX      := $(BUILD_APP_DIR)/app_test.cbx \
                  $(BUILD_APP_DIR)/app_info.cbx \
                  $(BUILD_APP_DIR)/app_text.cbx \
-                 $(BUILD_APP_DIR)/app_calc.cbx
+                 $(BUILD_APP_DIR)/app_calc.cbx \
+                 $(BUILD_APP_DIR)/app_game.cbx
 
 OBJS := $(BUILD_DIR)/boot.o \
         $(BUILD_DIR)/isr_asm.o \
@@ -105,6 +106,23 @@ $(BUILD_APP_DIR)/app_calc.elf: $(BUILD_APP_DIR)/app_calc.o | build_dirs
 $(BUILD_APP_DIR)/app_calc.cbx: $(BUILD_APP_DIR)/app_calc.elf tools/cbxpack.py | build_dirs
 	@echo "[CBXPACK] $< -> $@"
 	@$(PYTHON) tools/cbxpack.py $< $@ --name "LogicCalc" --desc "App 2: Logic, Math & Loops"
+
+# 5. Stage 7: Reusable mini game engine + interactive Dodge game
+$(BUILD_APP_DIR)/app_game.o: apps/app_game/app_game.c apps/app_game/game_engine.h sdk/customos.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_game/ -c $< -o $@
+
+$(BUILD_APP_DIR)/game_engine.o: apps/app_game/game_engine.c apps/app_game/game_engine.h sdk/customos.h | build_dirs
+	@echo "[APP-CC] $< -> $@"
+	@$(CC) -m32 -ffreestanding -fno-pie -fno-stack-protector -nostdlib -Wall -Wextra -O2 -I sdk/ -I apps/app_game/ -c $< -o $@
+
+$(BUILD_APP_DIR)/app_game.elf: $(BUILD_APP_DIR)/app_game.o $(BUILD_APP_DIR)/game_engine.o | build_dirs
+	@echo "[APP-LD] $^ -> $@"
+	@$(LD) -m elf_i386 -T sdk/app.ld $^ -o $@
+
+$(BUILD_APP_DIR)/app_game.cbx: $(BUILD_APP_DIR)/app_game.elf tools/cbxpack.py | build_dirs
+	@echo "[CBXPACK] $< -> $@"
+	@$(PYTHON) tools/cbxpack.py $< $@ --name "Dodge" --desc "Stage 7: Game Engine & Dodge"
 
 # --- Сборка виртуального диска AppFS ---
 $(APPFS_IMG): $(APPS_CBX) tools/mkappfs.py | build_dirs
