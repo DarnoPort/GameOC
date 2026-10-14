@@ -19,9 +19,9 @@
 ```ebnf
 program       = { blank | comment | label };
 label         = "label", identifier, ":", newline,
-                { blank | comment | statement },
-                [ "return;" | "jump", identifier, ";" ],
-                ( next-label-or-eof );
+                { blank | comment | statement };
+(* Тело метки продолжается до следующего объявления label на верхнем уровне
+   или до конца файла. Переход в следующую метку автоматически не выполняется. *)
 
 statement     = text-line | jump | return | menu;
 text-line     = text, ";";
