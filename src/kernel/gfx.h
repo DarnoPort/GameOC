@@ -35,5 +35,6 @@ void gfx_fill_circle(int xc, int yc, int r, uint8_t color);
 /* Вывод растрового текста 8x8 */
 void gfx_draw_char(int x, int y, char c, uint8_t fg, int bg);
 void gfx_draw_text(int x, int y, const char *str, uint8_t fg, int bg);
+void gfx_draw_utf8(int x, int y, const char *str, uint8_t fg, int bg);
 
 #endif
