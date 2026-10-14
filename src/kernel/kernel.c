@@ -167,6 +167,8 @@ void kmain(uint32_t magic, uint32_t mb_info_addr) {
 
     /* 4. Подготовка RAM и поиск внешнего пакета приложений. */
     configure_app_store(magic, mb_info_addr);
+    /* Restore installed standalone games from the persistent ProjectFS. */
+    (void)app_registry_load_persistent();
     discover_external_appfs(magic, mb_info_addr);
 
     /* 5. Запуск лаунчера. */
