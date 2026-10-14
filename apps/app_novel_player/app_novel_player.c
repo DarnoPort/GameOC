@@ -41,14 +41,6 @@ static uint32_t utf8_next(const char *text, uint32_t offset, uint32_t length) {
     return offset + step;
 }
 
-static uint32_t utf8_codepoints(const char *text, uint32_t length) {
-    uint32_t count = 0;
-    for (uint32_t pos = 0; pos < length; count++) {
-        pos = utf8_next(text, pos, length);
-    }
-    return count;
-}
-
 static void draw_text(const customos_api_t *api, int x, int y,
                       const char *text, uint8_t fg, int bg) {
     if (api->gfx_draw_utf8 != NULL) {
