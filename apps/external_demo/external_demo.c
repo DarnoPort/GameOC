@@ -41,9 +41,9 @@ int app_main(const customos_api_t *api) {
         api->gfx_draw_text(22, 18, "EXTERNAL APP TRANSFER TEST",
                            COLOR_WHITE, COLOR_TRANSPARENT);
 
-        api->gfx_draw_text(24, 48, "This program was not linked into the kernel.",
+        api->gfx_draw_text(24, 48, "Not linked into the kernel.",
                            text_color, COLOR_TRANSPARENT);
-        api->gfx_draw_text(24, 66, "It was supplied as a separate CBX/AppFS module.",
+        api->gfx_draw_text(24, 66, "Loaded from a separate CBX module.",
                            text_color, COLOR_TRANSPARENT);
         api->gfx_draw_text(24, 92, "Frames:", COLOR_LIGHT_GRAY, COLOR_TRANSPARENT);
         api->gfx_draw_text(88, 92, frame_text, COLOR_WHITE, COLOR_TRANSPARENT);
