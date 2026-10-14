@@ -201,6 +201,9 @@ run: $(KERNEL_BIN) ensure-data-disk
 	@echo "Запуск CustomOS в QEMU..."
 	$(QEMU) -kernel $(KERNEL_BIN) -drive file=$(DATA_DISK),format=raw,if=ide,index=0
 
+test:
+	@PYTHONPATH=tools $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
+
 clean:
 	@rm -rf $(BUILD_DIR) $(BIN_DIR)
-	@echo "Каталоги сборки очищены."
+	@echo "Каталоги сборки очищены. Образ customos_data.img и пользовательские проекты сохранены."
