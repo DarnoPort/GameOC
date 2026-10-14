@@ -170,7 +170,7 @@ static void test_syntax_errors(void) {
 
     expect_compile_error(
         "label first:\nmenu:\nOption:\nSome text;\nendchoice;\nreturn;\n",
-        VN_ERR_EXPECTED_ENDMENU, 2, "reject a menu without endmenu");
+        VN_ERR_EXPECTED_ENDMENU, 6, "reject a menu without endmenu");
 
     expect_compile_error(
         "label first:\nmenu:\nOption:\nmenu:\nNested;\nendchoice;\nendmenu;\nreturn;\n",
