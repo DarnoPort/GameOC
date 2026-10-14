@@ -115,7 +115,7 @@ static void draw_arena(const customos_api_t *api,
     game_engine_draw(engine, api);
 
     api->gfx_fill_rect(0, 176, 320, 24, COLOR_DARK_GRAY);
-    api->gfx_draw_text(8, 180, "MOVE: arrows/WASD   P: pause   ESC: exit",
+    api->gfx_draw_text(8, 180, "ARROWS/WASD:MOVE  P:PAUSE  ESC:EXIT",
                        COLOR_WHITE, COLOR_TRANSPARENT);
     api->gfx_flip();
 }
