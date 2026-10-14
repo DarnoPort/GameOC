@@ -1,6 +1,7 @@
 #include "gfx.h"
 #include "io.h"
 #include "font8x8.h"
+#include "font8x8_cyrillic.h"
 
 /* Внутренний двухбитный кадровый буфер ОС (16 000 байт) */
 static uint8_t gfx_backbuffer[GFX_BUFFER_SIZE];
@@ -237,5 +238,102 @@ void gfx_draw_text(int x, int y, const char *str, uint8_t fg, int bg) {
             cur_x += 8;
         }
         str++;
+    }
+}
+
+static int gfx_utf8_decode(const uint8_t *text, uint32_t *codepoint_out) {
+    uint8_t first = text[0];
+    if (first < 0x80u) {
+        *codepoint_out = first;
+        return 1;
+    }
+    if (first >= 0xC2u && first <= 0xDFu &&
+        (text[1] & 0xC0u) == 0x80u) {
+        *codepoint_out = ((uint32_t)(first & 0x1Fu) << 6) |
+                         (uint32_t)(text[1] & 0x3Fu);
+        return 2;
+    }
+    if (first >= 0xE0u && first <= 0xEFu &&
+        (text[1] & 0xC0u) == 0x80u &&
+        (text[2] & 0xC0u) == 0x80u) {
+        uint32_t cp = ((uint32_t)(first & 0x0Fu) << 12) |
+                      ((uint32_t)(text[1] & 0x3Fu) << 6) |
+                      (uint32_t)(text[2] & 0x3Fu);
+        if (cp >= 0x800u && !(cp >= 0xD800u && cp <= 0xDFFFu)) {
+            *codepoint_out = cp;
+            return 3;
+        }
+    }
+    if (first >= 0xF0u && first <= 0xF4u &&
+        (text[1] & 0xC0u) == 0x80u &&
+        (text[2] & 0xC0u) == 0x80u &&
+        (text[3] & 0xC0u) == 0x80u) {
+        uint32_t cp = ((uint32_t)(first & 0x07u) << 18) |
+                      ((uint32_t)(text[1] & 0x3Fu) << 12) |
+                      ((uint32_t)(text[2] & 0x3Fu) << 6) |
+                      (uint32_t)(text[3] & 0x3Fu);
+        if (cp >= 0x10000u && cp <= 0x10FFFFu) {
+            *codepoint_out = cp;
+            return 4;
+        }
+    }
+    *codepoint_out = '?';
+    return 1;
+}
+
+static void gfx_draw_cyrillic_glyph(int x, int y, uint32_t codepoint,
+                                    uint8_t fg, int bg) {
+    uint32_t index;
+    if (codepoint >= 0x0410u && codepoint <= 0x042Fu) {
+        index = codepoint - 0x0410u;
+    } else if (codepoint >= 0x0430u && codepoint <= 0x044Fu) {
+        index = 32u + codepoint - 0x0430u;
+    } else if (codepoint == 0x0401u) {
+        index = 64u;
+    } else if (codepoint == 0x0451u) {
+        index = 65u;
+    } else {
+        gfx_draw_char(x, y, '?', fg, bg);
+        return;
+    }
+
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            if (bg >= 0) gfx_put_pixel(x + col, y + row, (uint8_t)bg);
+        }
+    }
+
+    for (uint32_t row = 0; row < 7; row++) {
+        uint8_t bits = font5x7_cyrillic[index][row];
+        for (uint32_t col = 0; col < 5; col++) {
+            if ((bits >> (4u - col)) & 1u) {
+                gfx_put_pixel(x + (int)col + 1, y + (int)row, fg);
+            }
+        }
+    }
+}
+
+void gfx_draw_utf8(int x, int y, const char *str, uint8_t fg, int bg) {
+    if (str == NULL) return;
+
+    int cur_x = x;
+    int cur_y = y;
+    const uint8_t *cursor = (const uint8_t *)str;
+    while (*cursor != 0) {
+        uint32_t codepoint = 0;
+        int consumed = gfx_utf8_decode(cursor, &codepoint);
+        if (consumed <= 0) break;
+
+        if (codepoint == '\n') {
+            cur_x = x;
+            cur_y += 10;
+        } else if (codepoint < 0x80u) {
+            gfx_draw_char(cur_x, cur_y, (char)codepoint, fg, bg);
+            cur_x += 8;
+        } else {
+            gfx_draw_cyrillic_glyph(cur_x, cur_y, codepoint, fg, bg);
+            cur_x += 8;
+        }
+        cursor += consumed;
     }
 }
