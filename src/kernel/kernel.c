@@ -6,6 +6,7 @@
 #include "keyboard.h"
 #include "gfx.h"
 #include "app_registry.h"
+#include "app_loader.h"
 #include "launcher.h"
 
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002u
@@ -61,6 +62,7 @@ static void configure_app_store(uint32_t magic, uint32_t info_addr) {
         (const multiboot_info_prefix_t *)info_addr;
     if (!(info->flags & MULTIBOOT_INFO_MEMORY)) return;
 
+    if (info->mem_upper > (0xFFFFFFFFu - 0x00100000u) / 1024u) return;
     uint32_t memory_top = 0x00100000u + info->mem_upper * 1024u;
     if (memory_top < 0x00100000u) return;
 
