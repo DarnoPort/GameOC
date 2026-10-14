@@ -17,7 +17,7 @@ static int api_initialized = 0;
 static void init_system_api(void) {
     if (api_initialized) return;
 
-    system_api.version = 2;
+    system_api.version = 3;
 
     /* Текстовые вызовы */
     system_api.print      = vga_print;
@@ -34,12 +34,16 @@ static void init_system_api(void) {
     system_api.gfx_draw_circle = gfx_draw_circle;
     system_api.gfx_fill_circle = gfx_fill_circle;
     system_api.gfx_draw_text   = gfx_draw_text;
+    system_api.gfx_draw_utf8   = gfx_draw_utf8;
     system_api.gfx_flip        = gfx_flip;
 
     /* Ввод */
     system_api.kbd_has_key  = keyboard_has_char;
     system_api.kbd_get_key  = keyboard_get_char;
     system_api.kbd_wait_key = keyboard_wait_char;
+    system_api.kbd_get_codepoint = keyboard_get_codepoint;
+    system_api.kbd_wait_codepoint = keyboard_wait_codepoint;
+    system_api.kbd_russian_layout = keyboard_russian_layout;
 
     /* Время */
     system_api.timer_get_ticks = timer_get_ticks;
