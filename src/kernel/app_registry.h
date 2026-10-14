@@ -30,9 +30,11 @@ typedef struct {
     uint32_t size;
     const uint8_t *data;
     uint8_t  removable;
+    uint32_t storage_offset; /* смещение копии во внутреннем хранилище внешних CBX */
 } registered_app_t;
 
 int app_registry_init(const uint8_t *fs_data, uint32_t fs_size);
+int app_registry_set_storage(uint8_t *base, uint32_t size);
 int app_registry_set_external_source(const uint8_t *fs_data, uint32_t fs_size);
 int app_registry_external_available(void);
 int app_registry_install_external(void);
