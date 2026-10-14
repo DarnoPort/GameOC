@@ -35,6 +35,83 @@ static int vn_is_digit(char ch) {
     return ch >= '0' && ch <= '9';
 }
 
+static int vn_utf8_decode(const uint8_t *text, uint32_t length,
+                          uint32_t *codepoint_out) {
+    if (text == NULL || length == 0 || codepoint_out == NULL) return 0;
+    uint8_t first = text[0];
+    if (first < 0x80u) {
+        *codepoint_out = first;
+        return 1;
+    }
+
+    uint32_t needed;
+    uint32_t codepoint;
+    if (first >= 0xC2u && first <= 0xDFu) {
+        needed = 2;
+        codepoint = first & 0x1Fu;
+    } else if (first >= 0xE0u && first <= 0xEFu) {
+        needed = 3;
+        codepoint = first & 0x0Fu;
+    } else if (first >= 0xF0u && first <= 0xF4u) {
+        needed = 4;
+        codepoint = first & 0x07u;
+    } else {
+        return 0;
+    }
+    if (length < needed) return 0;
+
+    for (uint32_t i = 1; i < needed; i++) {
+        uint8_t byte = text[i];
+        if ((byte & 0xC0u) != 0x80u) return 0;
+        codepoint = (codepoint << 6) | (byte & 0x3Fu);
+    }
+
+    if ((needed == 3 && codepoint < 0x800u) ||
+        (needed == 4 && codepoint < 0x10000u) ||
+        (codepoint >= 0xD800u && codepoint <= 0xDFFFu) ||
+        codepoint > 0x10FFFFu) return 0;
+
+    *codepoint_out = codepoint;
+    return (int)needed;
+}
+
+static int vn_unicode_space(uint32_t codepoint) {
+    return codepoint == 0x00A0u || codepoint == 0x1680u ||
+           (codepoint >= 0x2000u && codepoint <= 0x200Au) ||
+           codepoint == 0x2028u || codepoint == 0x2029u ||
+           codepoint == 0x202Fu || codepoint == 0x205Fu ||
+           codepoint == 0x3000u;
+}
+
+static int vn_source_utf8_valid(const char *source, uint32_t length,
+                                uint32_t *invalid_offset) {
+    uint32_t offset = 0;
+    while (offset < length) {
+        uint8_t byte = (uint8_t)source[offset];
+        if (byte < 0x80u) {
+            offset++;
+            continue;
+        }
+        uint32_t codepoint = 0;
+        int decoded = vn_utf8_decode((const uint8_t *)source + offset,
+                                     length - offset, &codepoint);
+        if (decoded == 0) {
+            if (invalid_offset != NULL) *invalid_offset = offset;
+            return 0;
+        }
+        offset += (uint32_t)decoded;
+    }
+    return 1;
+}
+
+static uint32_t vn_line_at_offset(const char *source, uint32_t offset) {
+    uint32_t line = 1;
+    for (uint32_t i = 0; i < offset; i++) {
+        if (source[i] == '\n') line++;
+    }
+    return line;
+}
+
 static uint32_t vn_zlength(const char *text, uint32_t maximum) {
     uint32_t length = 0;
     if (text == NULL) return maximum + 1u;
@@ -69,6 +146,7 @@ const char *vn_error_message(vn_error_code_t code) {
         case VN_ERR_SOURCE_TOO_LARGE: return "The script exceeds the source size limit.";
         case VN_ERR_INVALID_ARGUMENT: return "Invalid argument passed to the scenario engine.";
         case VN_ERR_EMBEDDED_NUL: return "The source contains a NUL byte.";
+        case VN_ERR_INVALID_UTF8: return "The source contains invalid UTF-8.";
         case VN_ERR_INVALID_LABEL: return "Invalid label declaration or identifier.";
         case VN_ERR_DUPLICATE_LABEL: return "A label with this name is already declared.";
         case VN_ERR_TOO_MANY_LABELS: return "The script contains too many labels.";
@@ -180,11 +258,28 @@ static int vn_line_ends_with(const vn_line_t *line, char suffix) {
 
 static int vn_valid_identifier(const char *text, uint32_t length) {
     if (text == NULL || length == 0 || length > VN_MAX_IDENTIFIER_LENGTH) return 0;
-    if (!(vn_is_letter(text[0]) || text[0] == '_')) return 0;
-    for (uint32_t i = 1; i < length; i++) {
-        if (!(vn_is_letter(text[i]) || vn_is_digit(text[i]) || text[i] == '_')) return 0;
+    uint32_t offset = 0;
+    int first = 1;
+    while (offset < length) {
+        uint8_t byte = (uint8_t)text[offset];
+        if (byte < 0x80u) {
+            char ch = (char)byte;
+            if (first) {
+                if (!(vn_is_letter(ch) || ch == '_')) return 0;
+            } else if (!(vn_is_letter(ch) || vn_is_digit(ch) || ch == '_')) {
+                return 0;
+            }
+            offset++;
+        } else {
+            uint32_t codepoint = 0;
+            int decoded = vn_utf8_decode((const uint8_t *)text + offset,
+                                         length - offset, &codepoint);
+            if (decoded == 0 || vn_unicode_space(codepoint)) return 0;
+            offset += (uint32_t)decoded;
+        }
+        first = 0;
     }
-    return 1;
+    return !first;
 }
 
 static int vn_add_instruction(vn_parser_t *parser, uint32_t line,
@@ -564,6 +659,11 @@ int vn_compile(const char *source, uint32_t source_length,
         if (source[i] == '\0') {
             return vn_set_error(error, VN_ERR_EMBEDDED_NUL, 0);
         }
+    }
+    uint32_t invalid_offset = 0;
+    if (!vn_source_utf8_valid(source, source_length, &invalid_offset)) {
+        return vn_set_error(error, VN_ERR_INVALID_UTF8,
+                            vn_line_at_offset(source, invalid_offset));
     }
 
     vn_parser_t parser;
