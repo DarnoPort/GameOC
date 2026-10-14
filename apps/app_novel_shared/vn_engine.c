@@ -709,7 +709,7 @@ vn_event_type_t vn_runtime_next(vn_runtime_t *runtime,
         runtime->program->magic != VN_PROGRAM_MAGIC ||
         runtime->program->instruction_count == 0 ||
         runtime->program->instruction_count > VN_MAX_INSTRUCTIONS ||
-        runtime->program->pc > runtime->program->instruction_count ||
+        runtime->pc > runtime->program->instruction_count ||
         runtime->program->label_count == 0 ||
         runtime->program->label_count > VN_MAX_LABELS ||
         runtime->program->menu_count > VN_MAX_MENUS ||
