@@ -27,11 +27,14 @@ static void int_to_dec(uint32_t n, char *out) {
 
 static uint32_t utf8_step(const char *text, uint32_t offset) {
     uint8_t first = (uint8_t)text[offset];
-    if (first < 0x80u) return 1u;
-    if (first >= 0xF0u) return 4u;
-    if (first >= 0xE0u) return 3u;
-    if (first >= 0xC2u) return 2u;
-    return 1u;
+    uint32_t count = first < 0x80u ? 1u :
+        (first >= 0xF0u ? 4u : (first >= 0xE0u ? 3u :
+        (first >= 0xC2u ? 2u : 1u)));
+    for (uint32_t i = 1; i < count; i++) {
+        uint8_t byte = (uint8_t)text[offset + i];
+        if (byte == 0 || (byte & 0xC0u) != 0x80u) return 1u;
+    }
+    return count;
 }
 
 static void draw_truncated(int x, int y, const char *src,
@@ -46,10 +49,6 @@ static void draw_truncated(int x, int y, const char *src,
     while (src[source_offset] != '\0' && characters < max_chars) {
         uint32_t step = utf8_step(src, source_offset);
         uint32_t end = source_offset + step;
-        if (src[end - 1u] == '\0') {
-            step = 1u;
-            end = source_offset + 1u;
-        }
         if (written + step >= sizeof(text) - 1u) {
             truncated = 1;
             break;
@@ -84,8 +83,13 @@ void launcher_run(void) {
                 if (app_count > 0) selected = (selected + 1) % app_count;
             } else if (key == 'i' || key == 'I') {
                 int installed = app_registry_install_external();
-                if (installed > 0) status_message = "External apps added";
-                else if (installed == 0) status_message = "No new apps imported";
+                if (installed > 0) {
+                    status_message = "External apps added";
+                    selected = app_registry_get_count() - 1;
+                    if (selected < 0) selected = 0;
+                    scroll_start = selected >= LIST_VISIBLE_ROWS
+                        ? selected - LIST_VISIBLE_ROWS + 1 : 0;
+                } else if (installed == 0) status_message = "No new apps imported";
                 else if (installed == -1) status_message = "No external package";
                 else if (installed == -3) status_message = "No memory for apps";
                 else if (installed == -4) status_message = "Registry full";
