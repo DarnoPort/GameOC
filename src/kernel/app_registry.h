@@ -5,7 +5,7 @@
 #include "cbx.h"
 
 #define APPFS_MAGIC          0x31534641 /* "AFS1" */
-#define MAX_REGISTERED_APPS  16
+#define MAX_REGISTERED_APPS  64
 
 /* Запись в каталоге AppFS. */
 typedef struct {
@@ -30,6 +30,7 @@ typedef struct {
     uint32_t size;
     const uint8_t *data;
     uint8_t  removable;
+    uint8_t  persistent;
     uint32_t storage_offset; /* смещение копии во внутреннем хранилище внешних CBX */
 } registered_app_t;
 
@@ -38,6 +39,8 @@ int app_registry_set_storage(uint8_t *base, uint32_t size);
 int app_registry_set_external_source(const uint8_t *fs_data, uint32_t fs_size);
 int app_registry_external_available(void);
 int app_registry_install_external(void);
+int app_registry_install_persistent(const char *filename);
+int app_registry_load_persistent(void);
 
 int app_registry_get_count(void);
 const registered_app_t *app_registry_get(int index);
