@@ -164,7 +164,7 @@ def run_one_boot(qemu: str, kernel: Path, appfs: Path, disk: Path, monitor_path:
             pass
 
 
-def decode_status_line(screenshot_path: Path) -> str:
+def decode_status_line(screenshot_path: Path, row_y: int = 62, start_x: int = 18, max_chars: int = 38) -> str:
     """Decode the ASCII status row rendered with CustomOS's own 8x8 font."""
     image = screenshot_path.read_bytes()
     header = re.match(rb"^P6\s+(\d+)\s+(\d+)\s+255\s", image)
@@ -190,8 +190,8 @@ def decode_status_line(screenshot_path: Path) -> str:
         return pixels[px:px + 3]
 
     decoded = []
-    for index in range(38):
-        cell_x = 18 + index * 8
+    for index in range(max_chars):
+        cell_x = start_x + index * 8
         if cell_x + 8 > 320:
             break
         match_code = None
@@ -200,7 +200,7 @@ def decode_status_line(screenshot_path: Path) -> str:
             for row in range(8):
                 bits = glyphs[code][row]
                 for col in range(8):
-                    pixel = pixel_rgb(cell_x + col, 62 + row)
+                    pixel = pixel_rgb(cell_x + col, row_y + row)
                     should_be_white = ((bits >> col) & 1) != 0
                     if should_be_white and pixel != b"\xff\xff\xff":
                         valid = False
@@ -246,6 +246,8 @@ def main() -> int:
             create_appfs(str(appfs), [str(app)])
             first_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-1.sock",
                                         work / "screen-1.ppm")
+            first_title = decode_status_line(work / "screen-1.ppm", 5, 6, 30)
+            print(f"[QEMU-TEST] First boot title: {first_title!r}")
             print(f"[QEMU-TEST] First boot screen: {first_status!r}")
             if not first_status.startswith("MARKER CREATED"):
                 fail(f"diagnostic app did not report first-boot state: {first_status!r}")
@@ -259,6 +261,8 @@ def main() -> int:
 
             second_status = run_one_boot(qemu, kernel, appfs, disk, work / "monitor-2.sock",
                                          work / "screen-2.ppm")
+            second_title = decode_status_line(work / "screen-2.ppm", 5, 6, 30)
+            print(f"[QEMU-TEST] Second boot title: {second_title!r}")
             print(f"[QEMU-TEST] Second boot screen: {second_status!r}")
             if not second_status.startswith("PERSISTENCE PASS"):
                 fail(f"diagnostic app did not report reboot success: {second_status!r}")
